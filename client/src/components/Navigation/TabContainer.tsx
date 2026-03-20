@@ -81,15 +81,16 @@ const SortableTab = memo(({
         style={style}
         {...attributes}
         {...listeners}
+        onClick={onSelect}
         className={cn(
-          "group relative flex items-center h-full px-4 gap-2 cursor-grab active:cursor-grabbing transition-all min-w-[120px] max-w-[200px] rounded-t-lg select-none",
+          "group relative flex items-center h-full px-4 gap-2 cursor-pointer active:cursor-grabbing transition-colors duration-200 min-w-[120px] max-w-[200px] rounded-t-lg select-none",
           isActive 
             ? "bg-black/40 text-foreground border-x border-t border-white/5 shadow-inner" 
             : "bg-transparent text-muted-foreground/30 hover:bg-black/10 hover:text-foreground/80",
           isDragging && "opacity-50 z-50 shadow-2xl"
         )}
       >
-        <div onClick={onSelect} className="flex items-center gap-2 flex-1 min-w-0 pointer-events-none">
+        <div className="flex items-center gap-2 flex-1 min-w-0 pointer-events-none">
           <div className="flex-shrink-0">{getIcon(tab.type)}</div>
           <span className="text-[11px] font-medium truncate">{tab.name}</span>
         </div>
@@ -124,7 +125,8 @@ export const TabContainer = memo(() => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 2,
+        delay: 250,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
