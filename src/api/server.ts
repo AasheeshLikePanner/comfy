@@ -43,7 +43,7 @@ app.post('/connections/detect', async (c) => {
 });
 
 app.post('/connections/connect', async (c) => {
-  const { connectionString } = await c.req.json();
+  const { connectionString, name } = await c.req.json();
   
   if (!connectionString) {
     return c.json({ error: 'Connection string required' }, 400);
@@ -53,7 +53,7 @@ app.post('/connections/connect', async (c) => {
   const config = {
     id,
     connectionString,
-    name: maskPassword(connectionString),
+    name: name || maskPassword(connectionString),
   };
 
   try {

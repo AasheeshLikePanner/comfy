@@ -8,13 +8,13 @@ import { useNavigationStore } from '@/store/navigation';
 import { useConnectionStore } from '@/store/connection';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
-import { Moon, Sun, Monitor, Database } from '@phosphor-icons/react';
+import { Moon, Sun, Monitor, Database, List } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 
 import { TabContainer } from '@/components/Navigation/TabContainer';
 
 function App() {
-  const { currentView, selectedObject, tabs, activeTabId, nextTab, previousTab } = useNavigationStore();
+  const { currentView, selectedObject, tabs, activeTabId, nextTab, previousTab, isSidebarCollapsed, toggleSidebar } = useNavigationStore();
   const { fetchConnections } = useConnectionStore();
   const [theme, setTheme] = React.useState<'light' | 'dark' | 'system'>('dark');
 
@@ -120,27 +120,47 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex bg-background text-foreground antialiased selection:bg-primary/10">
-        <div className="w-64 flex-shrink-0 border-r border-border/40 bg-card/30 backdrop-blur-xl">
-          <Sidebar />
+      <div className="h-screen flex bg-background text-foreground antialiased selection:bg-primary/10 overflow-hidden">
+        <div 
+          className={cn(
+            "flex-shrink-0 border-r border-border/40 bg-card/30 backdrop-blur-xl transition-all duration-300 ease-in-out overflow-hidden",
+            isSidebarCollapsed ? "w-0" : "w-64"
+          )}
+        >
+          <div className="w-64 h-full">
+            <Sidebar />
+          </div>
         </div>
+<div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+  {/* Header */}
+  <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 bg-background/50 backdrop-blur-md">
+    <div className="flex items-center gap-4">
+      <button
+        onClick={toggleSidebar}
+        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground/40 hover:text-foreground transition-colors mr-2"
+        title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+      >
+        <List className="w-5 h-5" />
+      </button>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 bg-background/50 backdrop-blur-md">
-            <div className="flex items-center gap-4">
-              {selectedObject && (
-                <div className="flex items-center gap-2 text-[13px]">
-                  <span className="px-1.5 py-0.5 rounded bg-secondary text-muted-foreground text-[10px] font-medium tracking-tight">
-                    {selectedObject.schema}
-                  </span>
-                  <span className="text-muted-foreground/30 font-light">/</span>
-                  <span className="font-medium text-foreground/90">
-                    {selectedObject.table}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 uppercase tracking-widest ml-1 font-semibold">{selectedObject.type}</span>
-                </div>
-              )}
+      {isSidebarCollapsed && (
+        <div className="flex items-center gap-2 mr-2 animate-in fade-in slide-in-from-left-4 duration-500">
+          <Database className="w-4 h-4 text-primary" weight="fill" />
+          <span className="font-bold text-[13px] tracking-tight text-foreground/90 uppercase">dbviz</span>
+        </div>
+      )}
+      {selectedObject && (
+        <div className="flex items-center gap-2 text-[13px]">
+          <span className="px-1.5 py-0.5 rounded bg-secondary text-muted-foreground text-[10px] font-medium tracking-tight">
+            {selectedObject.schema}
+          </span>
+          <span className="text-muted-foreground/30 font-light">/</span>
+          <span className="font-medium text-foreground/90">
+            {selectedObject.table}
+          </span>
+          <span className="text-[10px] text-muted-foreground/60 uppercase tracking-widest ml-1 font-semibold">{selectedObject.type}</span>
+        </div>
+      )}
             </div>
 
             <div className="flex items-center gap-4">

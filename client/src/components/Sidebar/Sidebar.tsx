@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ConnectionDialog } from './ConnectionDialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   CaretRight,
   CaretDown,
   Table,
@@ -19,6 +26,10 @@ import {
   CircleNotch,
   MagnifyingGlass,
   ArrowsClockwise,
+  PencilSimple,
+  Trash,
+  Check,
+  CaretLeft,
 } from '@phosphor-icons/react';
 
 const ObjectTreeNode = ({ 
@@ -145,57 +156,97 @@ const ObjectTreeNode = ({
   );
 };
 
-const ConnectionTab = ({ connection, isActive, onClick, onClose }: {
+const ConnectionItem = ({ connection, isActive, onClick, onClose }: {
   connection: Connection;
   isActive: boolean;
   onClick: () => void;
   onClose: () => void;
 }) => {
+  const { updateConnection } = useConnectionStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(connection.name);
+
   const statusColor = {
     connected: 'bg-emerald-500',
     connecting: 'bg-amber-500 animate-pulse',
     error: 'bg-red-500',
-    disconnected: 'bg-muted-foreground',
+    disconnected: 'bg-muted-foreground/20',
   }[connection.status];
+
+  const handleSave = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (editName.trim()) {
+      updateConnection(connection.id, { name: editName.trim() });
+    }
+    setIsEditing(false);
+  };
 
   return (
     <div
       className={cn(
-        'group flex items-center gap-3 px-4 py-2 cursor-pointer transition-all duration-200 border-l-2',
+        'group relative flex items-center gap-3 px-5 py-1.5 cursor-pointer transition-all duration-150',
         isActive 
-          ? 'bg-secondary/40 border-l-foreground/80' 
-          : 'hover:bg-secondary/20 border-l-transparent'
+          ? 'bg-secondary text-foreground' 
+          : 'hover:bg-secondary/30 text-muted-foreground/70 hover:text-foreground'
       )}
       onClick={onClick}
     >
-      <div className={cn('w-1.5 h-1.5 rounded-full shadow-sm', statusColor)} />
+      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusColor)} />
+      
       <div className="flex-1 min-w-0">
-        <span className={cn('text-[12px] truncate block font-medium', isActive ? 'text-foreground' : 'text-muted-foreground')}>
-          {connection.name}
-        </span>
-        {connection.latency && (
-          <span className="text-[10px] text-muted-foreground/50 tabular-nums">{connection.latency}ms</span>
+        {isEditing ? (
+          <form onSubmit={handleSave} onClick={e => e.stopPropagation()} className="flex items-center">
+            <input
+              autoFocus
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onBlur={() => handleSave()}
+              className="w-full bg-transparent border-none p-0 text-[12px] font-medium focus:outline-none text-foreground"
+            />
+          </form>
+        ) : (
+          <div className="flex items-baseline justify-between gap-2">
+            <span className={cn('text-[12px] truncate font-medium tracking-tight', isActive ? 'text-foreground' : 'text-inherit')}>
+              {connection.name}
+            </span>
+            {connection.latency && isActive && (
+              <span className="text-[9px] text-emerald-500/40 font-bold tabular-nums shrink-0">{connection.latency}ms</span>
+            )}
+          </div>
         )}
       </div>
-      <button
-        className="opacity-0 group-hover:opacity-100 hover:bg-secondary rounded p-0.5 transition-all duration-200"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-      >
-        <X className="w-3 h-3 text-muted-foreground/60 hover:text-foreground" />
-      </button>
+      
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          className="p-1 hover:bg-black/10 rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
+        >
+          <PencilSimple className="w-3 h-3" />
+        </button>
+        <button
+          className="p-1 hover:bg-black/10 rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (confirm('Delete connection?')) onClose();
+          }}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 };
 
 export const Sidebar = () => {
   const { connections, activeConnectionId, setActiveConnection, removeConnection, completeConnection } = useConnectionStore();
-  const { searchQuery, setSearchQuery, setExpanded } = useNavigationStore();
+  const { searchQuery, setSearchQuery, setExpanded, toggleSidebar } = useNavigationStore();
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState<string>('manual');
 
   const activeConnection = connections.find(c => c.id === activeConnectionId);
 
@@ -237,8 +288,8 @@ export const Sidebar = () => {
     }
   };
 
-  const handleConnect = async (connectionString: string) => {
-    await completeConnection(connectionString);
+  const handleConnect = async (connectionString: string, name?: string) => {
+    await completeConnection(connectionString, name);
   };
 
   const handleRefresh = () => {
@@ -278,18 +329,18 @@ export const Sidebar = () => {
 
       {/* Connection tabs */}
       <div className="border-b border-border/40 pb-2">
-        <div className="px-5 mb-2 flex items-center justify-between">
-          <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">Connections</span>
+        <div className="px-5 py-4 flex items-center justify-between">
+          <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.2em]">Connections</span>
           <button
             onClick={() => setShowConnectDialog(true)}
-            className="p-1 hover:bg-secondary rounded-sm transition-colors text-muted-foreground/60 hover:text-foreground"
+            className="p-1 hover:bg-secondary rounded transition-colors text-muted-foreground/40 hover:text-foreground"
           >
-            <Plus className="w-3.5 h-3.5" weight="bold" />
+            <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="max-h-[120px] overflow-auto">
+        <div className="max-h-[160px] overflow-auto no-scrollbar">
           {connections.map(conn => (
-            <ConnectionTab
+            <ConnectionItem
               key={conn.id}
               connection={conn}
               isActive={conn.id === activeConnectionId}
@@ -297,6 +348,9 @@ export const Sidebar = () => {
               onClose={() => removeConnection(conn.id)}
             />
           ))}
+          {connections.length === 0 && (
+            <div className="px-5 py-2 text-[11px] text-muted-foreground/20 italic">No connections</div>
+          )}
         </div>
       </div>
 
@@ -337,16 +391,36 @@ export const Sidebar = () => {
             )}
           </div>
 
-          <div className="p-3 border-t border-border/40">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-full h-8 text-[11px] font-medium justify-start text-muted-foreground/60 hover:text-foreground hover:bg-secondary/40 rounded-md px-2 transition-all" 
-              onClick={handleRefresh}
-            >
-              <ArrowsClockwise className="w-3.5 h-3.5 mr-2" weight="bold" />
-              Refresh all schemas
-            </Button>
+          <div className="p-3 border-t border-border/40 bg-secondary/10 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.2em]">Data Refresh</span>
+              <Select 
+                value={refreshInterval} 
+                onValueChange={(v) => {
+                  if (v === 'now') {
+                    fetchObjects();
+                  } else {
+                    setRefreshInterval(v);
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 text-[10px] bg-background/50 border-border/20 w-[110px] font-medium transition-all hover:border-border/40">
+                  <div className="flex items-center gap-2">
+                    {loading ? <CircleNotch className="w-3 h-3 animate-spin" /> : <ArrowsClockwise className="w-3 h-3" />}
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border/40">
+                  <SelectItem value="now" className="text-[10px] font-medium text-primary">Refresh now</SelectItem>
+                  <div className="h-px bg-border/20 my-1" />
+                  <SelectItem value="manual" className="text-[10px] font-medium">Manual Only</SelectItem>
+                  <SelectItem value="1" className="text-[10px] font-medium">Every 1s</SelectItem>
+                  <SelectItem value="5" className="text-[10px] font-medium">Every 5s</SelectItem>
+                  <SelectItem value="10" className="text-[10px] font-medium">Every 10s</SelectItem>
+                  <SelectItem value="30" className="text-[10px] font-medium">Every 30s</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </>
       )}

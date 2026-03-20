@@ -30,6 +30,8 @@ interface NavigationState {
   searchQuery: string;
   currentView: 'data' | 'schema' | 'sql';
   schemaTab: 'columns' | 'indexes' | 'constraints' | 'triggers' | 'stats' | 'foreignKeys';
+  isSidebarCollapsed: boolean;
+  toggleSidebar: () => void;
   toggleExpanded: (nodeId: string) => void;
   setExpanded: (nodeId: string, expanded: boolean) => void;
   selectObject: (schema: string, table: string, type: ObjectType) => void;
@@ -51,6 +53,9 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   searchQuery: '',
   currentView: 'data',
   schemaTab: 'columns',
+  isSidebarCollapsed: false,
+
+  toggleSidebar: () => set(state => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
 
   toggleExpanded: (nodeId) => {
     set(state => {

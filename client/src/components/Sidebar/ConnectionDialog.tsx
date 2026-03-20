@@ -32,7 +32,7 @@ interface DetectResponse {
 interface ConnectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConnect: (connectionString: string) => Promise<void>;
+  onConnect: (connectionString: string, name?: string) => Promise<void>;
 }
 
 export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
@@ -42,6 +42,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
 }) => {
   const [step, setStep] = useState<'input' | 'detecting' | 'select'>('input');
   const [connectionString, setConnectionString] = useState('');
+  const [connectionName, setConnectionName] = useState('');
   const [localResult, setLocalResult] = useState<TestResult | null>(null);
   const [dockerResult, setDockerResult] = useState<TestResult | null>(null);
   const [dockerContainer, setDockerContainer] = useState<{ name: string; port: string } | null>(null);
@@ -74,12 +75,10 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
 
       const typedData = data as DetectResponse;
       
-      // Set state for UI display
       setLocalResult(typedData.local);
       setDockerResult(typedData.docker);
       setDockerContainer(typedData.dockerContainer || null);
 
-      // Use typedData directly, not state (state is async)
       if (typedData.type === 'docker' || typedData.dockerContainer) {
         await handleSelectConnection('docker', typedData.local, typedData.docker);
         return;
@@ -101,7 +100,6 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     localRes: TestResult | null,
     dockerRes: TestResult | null
   ) => {
-    // For Docker Desktop, use localhost which is forwarded from Docker
     const resultToUse = localRes;
     
     if (!resultToUse?.success) {
@@ -113,7 +111,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
     setConnecting(true);
     
     try {
-      await onConnect(connectionString);
+      await onConnect(connectionString, connectionName.trim() || undefined);
       onOpenChange(false);
       resetDialog();
     } catch (err: any) {
@@ -127,6 +125,7 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   const resetDialog = () => {
     setStep('input');
     setConnectionString('');
+    setConnectionName('');
     setLocalResult(null);
     setDockerResult(null);
     setError(null);
@@ -140,50 +139,67 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#161616] w-full max-w-[320px] border border-white/10 rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/5">
-        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div className="bg-[#121212] w-full max-w-[360px] border border-white/5 rounded-2xl overflow-hidden animate-in zoom-in-95 duration-300 shadow-2xl relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+        
         {step === 'input' && (
-          <div className="p-5 space-y-5">
+          <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-white/40" weight="duotone" />
-                <h2 className="text-[13px] font-semibold text-white/60">Connect</h2>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10">
+                  <Plus className="w-4 h-4 text-white/60" weight="bold" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-bold text-white/90">New Connection</h2>
+                  <p className="text-[10px] text-white/30 font-medium">Add a new database instance</p>
+                </div>
               </div>
-              <button onClick={handleClose} className="p-1 hover:bg-white/5 rounded text-white/20 transition-all">
-                <X className="w-3.5 h-3.5" />
+              <button onClick={handleClose} className="p-1.5 hover:bg-white/5 rounded-full text-white/20 hover:text-white/60 transition-all">
+                <X className="w-4 h-4" />
               </button>
             </div>
  
-            <div className="space-y-4 flex flex-col items-center">
-              <div className="w-60">
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest px-1">Connection Name</label>
                 <Input
-                  placeholder="Connection URL..."
+                  placeholder="e.g. Production DB, Local Dev..."
+                  value={connectionName}
+                  onChange={(e) => setConnectionName(e.target.value)}
+                  className="h-10 text-[13px] bg-white/[0.03] border-white/10 focus:border-primary/50 px-4 rounded-xl transition-all focus:ring-0"
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-white/20 uppercase tracking-widest px-1">Connection URL</label>
+                <Input
+                  placeholder="postgresql://user:pass@host:port/db"
                   value={connectionString}
                   onChange={(e) => setConnectionString(e.target.value)}
-                  className="h-10 text-[13px] bg-white/[0.02] border-white/5 focus:border-white/20 px-4 rounded-full font-mono focus:ring-0"
-                  autoFocus
+                  className="h-10 text-[13px] bg-white/[0.03] border-white/10 focus:border-primary/50 px-4 rounded-xl font-mono focus:ring-0 transition-all"
                 />
               </div>
  
               {error && (
-                <div className="text-[11px] text-red-500/60 px-1 leading-relaxed">
+                <div className="text-[11px] text-red-400 bg-red-500/5 border border-red-500/10 p-3 rounded-xl leading-relaxed animate-in fade-in slide-in-from-top-1">
                   {error}
                 </div>
               )}
  
-              <div className="flex flex-col items-center gap-2 pt-2 w-60">
+              <div className="flex flex-col gap-2 pt-2">
                 <Button 
                   onClick={handleDetect} 
                   disabled={!connectionString.trim()} 
-                  className="h-10 w-full bg-white text-black hover:bg-white/90 font-bold rounded-full transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]"
+                  className="h-11 w-full bg-white text-black hover:bg-white/90 font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg"
                 >
-                  Connect
+                  {connecting ? <CircleNotch className="w-4 h-4 animate-spin" /> : 'Connect Database'}
                 </Button>
                 <Button 
                   variant="ghost" 
                   onClick={handleClose} 
-                  className="h-10 w-full font-medium text-white/40 hover:text-white/80 border border-white/10 hover:border-white/20 rounded-full text-[12px] transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] "
+                  className="h-11 w-full font-semibold text-white/30 hover:text-white/90 hover:bg-white/5 rounded-xl text-[12px] transition-all" 
                 >
                   Cancel
                 </Button>
@@ -193,31 +209,41 @@ export const ConnectionDialog: React.FC<ConnectionDialogProps> = ({
         )}
 
         {step === 'detecting' && (
-          <div className="p-8 flex flex-col items-center justify-center gap-4">
-            <CircleNotch className="w-6 h-6 animate-spin text-white/20" />
-            <span className="text-[12px] font-medium text-white/40">Detecting...</span>
+          <div className="p-12 flex flex-col items-center justify-center gap-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
+              <CircleNotch className="w-8 h-8 animate-spin text-primary relative z-10" weight="bold" />
+            </div>
+            <div className="text-center">
+              <span className="text-[13px] font-bold text-white/80 block">Detecting connection...</span>
+              <span className="text-[10px] text-white/20 font-medium">Testing local and container routes</span>
+            </div>
           </div>
         )}
 
         {step === 'select' && (
-          <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] font-bold text-white/20 uppercase tracking-widest">Select Route</span>
+          <div className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[14px] font-bold text-white/90">Select Route</h2>
+                <p className="text-[10px] text-white/30 font-medium">Multiple paths found to your DB</p>
+              </div>
               <button 
                 onClick={() => setStep('input')}
-                className="text-[10px] font-medium text-white/40 hover:text-white/80"
+                className="text-[11px] font-bold text-primary hover:text-primary/80 transition-colors bg-primary/10 px-3 py-1 rounded-full"
               >
                 Back
               </button>
             </div>
  
-            <div className="space-y-2">
+            <div className="space-y-3">
               <ConnectionOption
                 type="local"
                 result={localResult}
                 onSelect={(type) => handleSelectConnection(type, localResult, dockerResult)}
                 disabled={connecting}
               />
+              <div className="h-px bg-white/5 mx-2" />
               <ConnectionOption
                 type="docker"
                 result={dockerResult}

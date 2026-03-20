@@ -33,16 +33,17 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     await get().completeConnection(conn.name);
   },
 
-  completeConnection: async (connectionString) => {
+  completeConnection: async (connectionString: string, name?: string) => {
     const maskedUrl = connectionString.replace(/\/\/([^:@]+):([^@]+)@/, '//$1:****@');
+    const displayName = name || maskedUrl;
     const tempId = 'connecting';
-    
+
     set(state => ({
       connections: [
         ...state.connections,
         { 
           id: tempId, 
-          name: maskedUrl, 
+          name: displayName, 
           maskedUrl, 
           status: 'connecting' as const 
         }
@@ -54,7 +55,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
       const response = await fetch('/api/connections/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionString }),
+        body: JSON.stringify({ connectionString, name: displayName }),
       });
 
       const data = await response.json();
