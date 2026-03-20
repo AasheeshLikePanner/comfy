@@ -1,0 +1,42 @@
+{
+  "name": "dbviz",
+  "version": "1.0.0",
+  "description": "Local PostgreSQL visualizer - npm i -g dbviz → dbviz postgres://... → browser opens",
+  "type": "module",
+  "bin": {
+    "dbviz": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "bun --watch run src/cli.ts",
+    "dev:client": "cd client && npm run dev",
+    "dev:all": "bun run dev:client & bun run dev",
+    "build": "bun build src/cli.ts --outdir dist --target bun",
+    "build:client": "cd client && npm run build",
+    "build:all": "npm run build && npm run build:client",
+    "start": "bun run dist/cli.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "hono": "^4.0.0",
+    "open": "^11.0.0",
+    "pg": "^8.11.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.10.9",
+    "bun-types": "^1.0.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "postgresql",
+    "database",
+    "visualizer",
+    "postgres",
+    "cli",
+    "tool"
+  ]
+}
