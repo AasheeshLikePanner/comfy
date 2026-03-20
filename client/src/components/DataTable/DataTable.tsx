@@ -5,6 +5,7 @@ import { useQueryStore } from '@/store/query';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AppTooltip } from '@/components/ui/AppTooltip';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -398,14 +399,56 @@ const DataTable = ({ tabId }: DataTableProps) => {
                     </div>
                   </TableHead>                  {data.columns.map(column => (
                     <TableHead key={column.name} className="h-8 py-0 cursor-pointer hover:bg-secondary/20 transition-all border-none font-bold group/head" onClick={() => handleSort(column.name)}>
-                      <div className="flex items-center gap-2 px-2">
-                        {column.is_pk && <span className="text-[8px] font-bold text-amber-500/60 uppercase">PK</span>}
-                        <span className="text-[11px] font-semibold text-foreground/60 transition-colors group-hover/head:text-foreground">{column.name}</span>
-                        <span className="text-[8px] font-medium text-muted-foreground/20 bg-foreground/[0.03] px-1 py-0.5 rounded border border-foreground/[0.05] group-hover/head:text-muted-foreground/40 transition-colors uppercase">{column.type}</span>
-                        <div className="opacity-0 group-hover/head:opacity-100 transition-opacity">
-                          {getSortIcon(column.name)}
+                      <AppTooltip 
+                        content={
+                          <div className="flex flex-col gap-1 min-w-[140px]">
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Type</span>
+                              <span className="text-foreground uppercase">{column.type}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground">Category</span>
+                              <span className="text-foreground">{getDataTypeCategory(column.type)}</span>
+                            </div>
+                            
+                            <div className="h-px bg-border/20 my-1" />
+                            
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-muted-foreground text-[9px]">Sorting</span>
+                              <span className="text-foreground text-[9px]">
+                                {sortColumn === column.name 
+                                  ? (sortDirection === 'ASC' ? 'Ascending' : 'Descending') 
+                                  : 'None'}
+                              </span>
+                            </div>
+
+                            {filters.some(f => f.column === column.name) && (
+                              <div className="flex flex-col gap-1 mt-1">
+                                <span className="text-muted-foreground text-[9px]">Active Filters</span>
+                                {filters.filter(f => f.column === column.name).map(f => (
+                                  <div key={f.id} className="text-[9px] text-primary/80 bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
+                                    {f.operator} '{f.value}'
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="mt-1 flex gap-1 flex-wrap">
+                              {column.nullable && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-background/50 border-white/5 text-muted-foreground/60">Nullable</Badge>}
+                              {column.is_pk && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-amber-500/10 border-amber-500/20 text-amber-500/80">Primary Key</Badge>}
+                              {column.is_fk && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-indigo-500/10 border-indigo-500/20 text-indigo-500/80">Foreign Key</Badge>}
+                            </div>
+                          </div>
+                        }
+                      >
+                        <div className="flex items-center gap-2 px-2">
+                          {column.is_pk && <span className="text-[8px] font-bold text-amber-500/60 uppercase">PK</span>}
+                          <span className="text-[11px] font-semibold text-foreground/60 transition-colors group-hover/head:text-foreground">{column.name}</span>
+                          <div className="transition-opacity flex items-center">
+                            {getSortIcon(column.name)}
+                          </div>
                         </div>
-                      </div>
+                      </AppTooltip>
                     </TableHead>
                   ))}
 
