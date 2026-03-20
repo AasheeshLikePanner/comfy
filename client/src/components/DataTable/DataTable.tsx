@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigationStore } from '@/store/navigation';
 import { useConnectionStore } from '@/store/connection';
-import { useQueryStore } from '@/store/query';
+import { useQueryStore, useTabQuery } from '@/store/query';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,7 @@ const DataTable = ({ tabId }: DataTableProps) => {
 
   const { activeConnectionId } = useConnectionStore();
   const queryStore = useQueryStore();
-  const tabQuery = queryStore.getTabQuery(tabId);
+  const tabQuery = useTabQuery(tabId);
   
   const { 
     searchQuery, limit, offset, sortColumn, sortDirection, filters 
@@ -111,20 +111,22 @@ const DataTable = ({ tabId }: DataTableProps) => {
     refColumn: string;
   }[]>([]);
 
-  const handleCopy = (text: string, row: number, col: string) => {
+  const handleCopy = useCallback((text: string, row: number, col: string) => {
     copyToClipboard(text);
     setCopiedCell({ row, col });
     setTimeout(() => setCopiedCell(null), 2000);
-  };
+  }, []);
 
-  const toggleRowSelection = (id: string | number) => {
-    const newSelected = new Set(selectedRowIds);
-    if (newSelected.has(id)) newSelected.delete(id);
-    else newSelected.add(id);
-    setSelectedRowIds(newSelected);
-  };
+  const toggleRowSelection = useCallback((id: string | number) => {
+    setSelectedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
-  const toggleAllSelection = () => {
+  const toggleAllSelection = useCallback(() => {
     if (!data) return;
     if (selectedRowIds.size === data.rows.length) {
       setSelectedRowIds(new Set());
@@ -132,12 +134,12 @@ const DataTable = ({ tabId }: DataTableProps) => {
       const allIds = data.rows.map((row, idx) => row.id || idx);
       setSelectedRowIds(new Set(allIds));
     }
-  };
+  }, [data, selectedRowIds.size]);
 
-  const handleRowDelete = (row: Record<string, any>) => {
+  const handleRowDelete = useCallback((row: Record<string, any>) => {
     setEditingRow(row);
     setShowEditDialog(true);
-  };
+  }, []);
 
   useEffect(() => {
     if (selectedObject && activeConnectionId && currentView === 'data') {
@@ -213,29 +215,29 @@ const DataTable = ({ tabId }: DataTableProps) => {
     }
   };
 
-  const handleFKClick = (schema: string, table: string, column: string, value: any) => {
+  const handleFKClick = useCallback((schema: string, table: string, column: string, value: any) => {
     const newTabId = `${schema}.${table}`;
     useNavigationStore.getState().selectObject(schema, table, 'table');
     queryStore.clearFilters(newTabId);
     queryStore.addFilter(newTabId, { column, operator: 'equals', value: String(value) });
-  };
+  }, [queryStore]);
 
-  const handleSort = (column: string) => {
+  const handleSort = useCallback((column: string) => {
     if (sortColumn === column) {
       queryStore.setSort(tabId, column, sortDirection === 'ASC' ? 'DESC' : 'ASC');
     } else {
       queryStore.setSort(tabId, column, 'ASC');
     }
-  };
+  }, [tabId, sortColumn, sortDirection, queryStore]);
 
-  const getSortIcon = (column: string) => {
+  const getSortIcon = useCallback((column: string) => {
     if (sortColumn !== column) return <ArrowsDownUp className="w-3 h-3 text-muted-foreground/30" />;
     return sortDirection === 'ASC' 
       ? <CaretUp className="w-3 h-3 text-foreground" weight="bold" />
       : <CaretDown className="w-3 h-3 text-foreground" weight="bold" />;
-  };
+  }, [sortColumn, sortDirection]);
 
-  const handleExport = (format: 'csv' | 'json' | 'sql') => {
+  const handleExport = useCallback((format: 'csv' | 'json' | 'sql') => {
     if (!data || !selectedObject) return;
     const columns = data.columns.map(c => c.name);
     let content: string, filename: string, mimeType: string;
@@ -246,9 +248,9 @@ const DataTable = ({ tabId }: DataTableProps) => {
       default: return;
     }
     downloadFile(content, filename, mimeType);
-  };
+  }, [data, selectedObject]);
 
-  const renderCellValue = (value: any, column: ColumnInfo, rowIndex: number) => {
+  const renderCellValue = useCallback((value: any, column: ColumnInfo, rowIndex: number) => {
     if (value === null || value === undefined) return <span className="text-muted-foreground/20 font-mono text-[10px] italic underline decoration-border/20">null</span>;
     const typeCategory = getDataTypeCategory(column.type);
     const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
@@ -336,7 +338,7 @@ const DataTable = ({ tabId }: DataTableProps) => {
         )}
       </div>
     );
-  };
+  }, [expandedCell, copiedCell, foreignKeys, handleFKClick, handleCopy]);
 
   if (!selectedObject) return (
     <div className="flex-1 flex items-center justify-center text-muted-foreground/10 bg-background">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { useConnectionStore, Connection } from '@/store/connection';
 import { useNavigationStore, ObjectInfo } from '@/store/navigation';
 import Fuse from 'fuse.js';
@@ -35,7 +35,7 @@ import {
   TextAa,
 } from '@phosphor-icons/react';
 
-const ObjectTreeNode = ({ 
+const ObjectTreeNode = memo(({ 
   node, 
   level = 0,
   connectionId,
@@ -46,7 +46,11 @@ const ObjectTreeNode = ({
   connectionId: string;
   parentSchema?: string;
 }) => {
-  const { selectedObject, expandedNodes, toggleExpanded, selectObject } = useNavigationStore();
+  const selectedObject = useNavigationStore(state => state.selectedObject);
+  const expandedNodes = useNavigationStore(state => state.expandedNodes);
+  const toggleExpanded = useNavigationStore(state => state.toggleExpanded);
+  const selectObject = useNavigationStore(state => state.selectObject);
+  
   const [children, setChildren] = useState<ObjectInfo[]>([]);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -64,7 +68,7 @@ const ObjectTreeNode = ({
     }
   }, [showChildren, hasChildren, node.children]);
 
-  const handleClick = () => {
+  const handleClick = useCallback(() => {
     if (node.type === 'category') {
       toggleExpanded(`${connectionId}:${nodeSchema}:${node.name}`);
     } else if (node.type === 'column' && (node as any).parentTable && nodeSchema) {
@@ -72,7 +76,7 @@ const ObjectTreeNode = ({
     } else if (nodeSchema) {
       selectObject(nodeSchema, node.name, node.type);
     }
-  };
+  }, [node, nodeSchema, connectionId, toggleExpanded, selectObject]);
 
   const getIcon = () => {
     const iconProps = { className: "w-3.5 h-3.5", weight: "regular" as const };
@@ -161,15 +165,20 @@ const ObjectTreeNode = ({
       )}
     </div>
   );
-};
+}, (prev, next) => {
+  return prev.node === next.node && 
+         prev.level === next.level && 
+         prev.connectionId === next.connectionId &&
+         prev.parentSchema === next.parentSchema;
+});
 
-const ConnectionItem = ({ connection, isActive, onClick, onClose }: {
+const ConnectionItem = memo(({ connection, isActive, onClick, onClose }: {
   connection: Connection;
   isActive: boolean;
   onClick: () => void;
   onClose: () => void;
 }) => {
-  const { updateConnection } = useConnectionStore();
+  const updateConnection = useConnectionStore(state => state.updateConnection);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(connection.name);
 
@@ -180,13 +189,13 @@ const ConnectionItem = ({ connection, isActive, onClick, onClose }: {
     disconnected: 'bg-muted-foreground/20',
   }[connection.status];
 
-  const handleSave = (e?: React.FormEvent) => {
+  const handleSave = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
     if (editName.trim()) {
       updateConnection(connection.id, { name: editName.trim() });
     }
     setIsEditing(false);
-  };
+  }, [editName, connection.id, updateConnection]);
 
   return (
     <div
@@ -245,11 +254,19 @@ const ConnectionItem = ({ connection, isActive, onClick, onClose }: {
       </div>
     </div>
   );
-};
+});
 
-export const Sidebar = () => {
-  const { connections, activeConnectionId, setActiveConnection, removeConnection, completeConnection } = useConnectionStore();
-  const { searchQuery, setSearchQuery, setExpanded, toggleSidebar } = useNavigationStore();
+export const Sidebar = memo(() => {
+  const connections = useConnectionStore(state => state.connections);
+  const activeConnectionId = useConnectionStore(state => state.activeConnectionId);
+  const setActiveConnection = useConnectionStore(state => state.setActiveConnection);
+  const removeConnection = useConnectionStore(state => state.removeConnection);
+  const completeConnection = useConnectionStore(state => state.completeConnection);
+  
+  const searchQuery = useNavigationStore(state => state.searchQuery);
+  const setSearchQuery = useNavigationStore(state => state.setSearchQuery);
+  const setExpanded = useNavigationStore(state => state.setExpanded);
+  const toggleSidebar = useNavigationStore(state => state.toggleSidebar);
   const [objects, setObjects] = useState<ObjectInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
@@ -609,4 +626,4 @@ export const Sidebar = () => {
       />
     </div>
   );
-};
+});

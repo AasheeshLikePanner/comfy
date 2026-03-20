@@ -89,6 +89,10 @@ const DEFAULT_TAB_QUERY: TabQueryState = {
   offset: 0,
 };
 
+export const useTabQuery = (tabId: string | undefined): TabQueryState => {
+  return useQueryStore(state => state.queries[tabId || ''] || DEFAULT_TAB_QUERY);
+};
+
 export const useQueryStore = create<QueryState>()(
   persist(
     (set, get) => ({

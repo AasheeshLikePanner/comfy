@@ -147,18 +147,7 @@ function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <TabContainer />
         <div className="flex-1 relative overflow-hidden">
-          {tabs.map((tab) => (
-            <div 
-              key={tab.id}
-              className={cn(
-                "absolute inset-0 flex flex-col",
-                tab.id === activeTabId ? "visible z-10" : "invisible -z-10"
-              )}
-              style={tab.id !== activeTabId ? { display: 'none' } : {}}
-            >
-              {renderContent(tab.id)}
-            </div>
-          ))}
+          {activeTabId && renderContent(activeTabId)}
         </div>
       </div>
     );

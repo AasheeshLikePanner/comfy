@@ -43,6 +43,7 @@ interface NavigationState {
   setCurrentView: (view: 'data' | 'schema' | 'sql') => void;
   setSchemaTab: (tab: 'columns' | 'indexes' | 'constraints' | 'triggers' | 'stats' | 'foreignKeys') => void;
   setTabs: (tabs: Tab[]) => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
   reset: () => void;
   nextTab: () => void;
   previousTab: () => void;
@@ -146,6 +147,15 @@ export const useNavigationStore = create<NavigationState>()(
 
       setTabs: (tabs) => {
         set({ tabs });
+      },
+
+      reorderTabs: (fromIndex, toIndex) => {
+        set(state => {
+          const newTabs = [...state.tabs];
+          const [removed] = newTabs.splice(fromIndex, 1);
+          newTabs.splice(toIndex, 0, removed);
+          return { tabs: newTabs };
+        });
       },
 
       reset: () => {
