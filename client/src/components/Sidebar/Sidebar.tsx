@@ -34,17 +34,21 @@ const ObjectTreeNode = ({
 }) => {
   const { selectedObject, expandedNodes, toggleExpanded, selectObject } = useNavigationStore();
   const [children, setChildren] = useState<ObjectInfo[]>([]);
+  const [isHovered, setIsHovered] = useState(false);
 
   const nodeSchema = node.schema || parentSchema;
   const isExpanded = expandedNodes.has(`${connectionId}:${nodeSchema}:${node.name}`);
   const isSelected = selectedObject?.table === node.name && selectedObject?.schema === nodeSchema;
   const hasChildren = node.children && node.children.length > 0;
+  
+  // Expansion is click-based only
+  const showChildren = isExpanded;
 
   useEffect(() => {
-    if (isExpanded && hasChildren && node.children) {
+    if (showChildren && hasChildren && node.children) {
       setChildren(node.children);
     }
-  }, [isExpanded, hasChildren, node.children]);
+  }, [showChildren, hasChildren, node.children]);
 
   const handleClick = () => {
     if (node.type === 'category') {
@@ -56,6 +60,16 @@ const ObjectTreeNode = ({
 
   const getIcon = () => {
     const iconProps = { className: "w-3.5 h-3.5", weight: "regular" as const };
+    
+    if (node.type === 'category') {
+      // Show arrow ONLY when hovered or expanded (but the user said "when hover then show hte arrow")
+      if (!isHovered && !isExpanded) return <div className="w-2.5" />; // Spacer to prevent jumps
+      
+      return isExpanded 
+        ? <CaretDown className="w-2.5 h-2.5 text-muted-foreground/40" weight="bold" /> 
+        : <CaretRight className="w-2.5 h-2.5 text-muted-foreground/40" weight="bold" />;
+    }
+
     switch (node.type) {
       case 'schema':
         return <Database {...iconProps} className="w-3.5 h-3.5 text-blue-400/70" />;
@@ -69,17 +83,17 @@ const ObjectTreeNode = ({
         return <Function {...iconProps} className="w-3.5 h-3.5 text-amber-400/70" />;
       case 'sequence':
         return <Stack {...iconProps} className="w-3.5 h-3.5 text-rose-400/70" />;
-      case 'category':
-        return isExpanded 
-          ? <CaretDown className="w-2.5 h-2.5 text-muted-foreground/40" weight="bold" /> 
-          : <CaretRight className="w-2.5 h-2.5 text-muted-foreground/40" weight="bold" />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="select-none">
+    <div 
+      className="select-none"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div
         className={cn(
           'flex items-center gap-2.5 py-1 px-3 cursor-pointer rounded-md transition-all duration-150',
@@ -91,13 +105,21 @@ const ObjectTreeNode = ({
         style={{ paddingLeft: `${level * 14 + 12}px` }}
         onClick={handleClick}
       >
-        <span className="flex-shrink-0">
+        <span className="flex-shrink-0 w-4 flex items-center justify-center">
           {getIcon()}
         </span>
         <span className={cn(
-          'flex-1 truncate tracking-tight',
-          node.type === 'category' ? 'text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40' : 'text-[12px]'
+          'flex-1 truncate tracking-tight flex items-center gap-2',
+          node.type === 'category' ? 'text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/40' : 'text-[12px]'
         )}>
+          {node.type === 'category' && (
+            <>
+              {node.name.toLowerCase().includes('table') && <Table className="w-3 h-3 opacity-40" weight="fill" />}
+              {node.name.toLowerCase().includes('view') && <Eye className="w-3 h-3 opacity-40" weight="fill" />}
+              {node.name.toLowerCase().includes('function') && <Function className="w-3 h-3 opacity-40" weight="fill" />}
+              {node.name.toLowerCase().includes('sequence') && <Stack className="w-3 h-3 opacity-40" weight="fill" />}
+            </>
+          )}
           {node.name}
         </span>
         {node.row_count !== undefined && node.row_count > 0 && (
@@ -106,8 +128,8 @@ const ObjectTreeNode = ({
           </span>
         )}
       </div>
-      {isExpanded && children.length > 0 && (
-        <div className="mt-0.5">
+      {showChildren && children.length > 0 && (
+        <div className="mt-0.5 animate-in slide-in-from-top-1 duration-200">
           {children.map((child, index) => (
             <ObjectTreeNode
               key={`${child.schema || ''}:${child.name}:${index}`}

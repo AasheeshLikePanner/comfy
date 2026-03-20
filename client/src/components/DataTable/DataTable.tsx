@@ -64,19 +64,31 @@ interface ColumnInfo {
   is_fk: boolean;
 }
 
-const DataTable = () => {
-  const { selectedObject, currentView, setCurrentView } = useNavigationStore();
+interface DataTableProps {
+  tabId: string;
+}
+
+const DataTable = ({ tabId }: DataTableProps) => {
+  const { currentView, setCurrentView } = useNavigationStore();
+  const { tabs } = useNavigationStore();
+  
+  const tab = tabs.find(t => t.id === tabId);
+  const selectedObject = React.useMemo(() => 
+    tab ? { schema: tab.schema, table: tab.name, type: tab.type } : null,
+    [tab?.schema, tab?.name, tab?.type]
+  );
+
   const { activeConnectionId } = useConnectionStore();
+  const queryStore = useQueryStore();
+  const tabQuery = queryStore.getTabQuery(tabId);
+  
   const { 
-    searchQuery, setSearchQuery, 
-    limit, setLimit, offset, setOffset,
-    sortColumn, sortDirection, setSort,
-    filters, addFilter, removeFilter, clearFilters,
-  } = useQueryStore();
+    searchQuery, limit, offset, sortColumn, sortDirection, filters 
+  } = tabQuery;
 
   const [data, setData] = useState<TableData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState(searchQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [expandedCell, setExpandedCell] = useState<{ row: number; col: string } | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string | number>>(new Set());
@@ -122,11 +134,11 @@ const DataTable = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== searchQuery) {
-        setSearchQuery(searchInput);
+        queryStore.setSearchQuery(tabId, searchInput);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput, searchQuery, setSearchQuery]);
+  }, [searchInput, searchQuery, tabId]);
 
   const fetchData = async () => {
     const currentActiveId = useConnectionStore.getState().activeConnectionId;
@@ -164,9 +176,9 @@ const DataTable = () => {
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
-      setSort(column, sortDirection === 'ASC' ? 'DESC' : 'ASC');
+      queryStore.setSort(tabId, column, sortDirection === 'ASC' ? 'DESC' : 'ASC');
     } else {
-      setSort(column, 'ASC');
+      queryStore.setSort(tabId, column, 'ASC');
     }
   };
 
@@ -339,18 +351,26 @@ const DataTable = () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="h-4 w-[1px] bg-border/10 mx-1" />
-          <div className="flex items-center p-0.5 bg-secondary/30 rounded-md border border-border/10">
-            {['data', 'schema', 'sql'].map(v => (
-              <button key={v} onClick={() => setCurrentView(v as any)} className={cn('px-3 py-1 text-[10px] font-medium capitalize rounded-md transition-all', currentView === v ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground/30 hover:text-foreground')}>
-                {v}
-              </button>
-            ))}
-          </div>
-
-        </div>
+      <div className="h-4 w-[1px] bg-border/10 mx-1" />
+      <div className="flex items-center p-0.5 bg-secondary/30 rounded-md border border-border/10">
+        {['data', 'schema', 'sql'].map(v => (
+          <button key={v} onClick={() => setCurrentView(v as any)} className={cn('px-3 py-1 text-[10px] font-medium capitalize rounded-md transition-all', currentView === v ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground/30 hover:text-foreground')}>
+            {v}
+          </button>
+        ))}
       </div>
-      {showFilters && <FilterPanel columns={data?.columns || []} filters={filters} onAddFilter={addFilter} onRemoveFilter={removeFilter} onClearFilters={clearFilters} />}
+
+    </div>
+  </div>
+  {showFilters && (
+    <FilterPanel 
+      columns={data?.columns || []} 
+      filters={filters} 
+      onAddFilter={(f) => queryStore.addFilter(tabId, f)} 
+      onRemoveFilter={(id) => queryStore.removeFilter(tabId, id)} 
+      onClearFilters={() => queryStore.clearFilters(tabId)} 
+    />
+  )}
       {loading ? (
         <div className="flex-1 flex items-center justify-center bg-background"><CircleNotch className="w-5 h-5 animate-spin text-muted-foreground/10" /></div>
       ) : data ? (
@@ -428,21 +448,21 @@ const DataTable = () => {
           <div className="flex items-center justify-between border-t border-border/40 p-2 bg-secondary/5 backdrop-blur-2xl">
             <div className="flex items-center gap-4">
               <span className="text-[10px] text-muted-foreground/40 font-medium px-4">{offset + 1}-{Math.min(offset + limit, data.total)} of {data.total.toLocaleString()} rows</span>
-              <Select value={String(limit)} onValueChange={v => setLimit(Number(v))}>
-                <SelectTrigger className="h-7 text-[10px] bg-background/30 border-border/10 w-[90px] font-medium">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border/40">
-                  {[25, 50, 100, 500].map(val => <SelectItem key={val} value={String(val)} className="text-[10px] font-medium">{val} per page</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 px-4">
-              <Button variant="ghost" size="icon" className="h-7 w-7 border border-border/10 bg-background/20 hover:bg-background/40 transition-all active:scale-90" onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0}><CaretLeft className="w-3.5 h-3.5 text-muted-foreground/40" /></Button>
-              <div className="px-3 font-semibold tabular-nums text-foreground/50 text-[11px] min-w-[70px] text-center">{currentPage} of {totalPages || 1}</div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 border border-border/10 bg-background/20 hover:bg-background/40 transition-all active:scale-90" onClick={() => setOffset(offset + limit)} disabled={offset + limit >= data.total}><CaretRight className="w-3.5 h-3.5 text-muted-foreground/40" /></Button>
-            </div>
-          </div>
+          <Select value={String(limit)} onValueChange={v => queryStore.setLimit(tabId, Number(v))}>
+            <SelectTrigger className="h-7 text-[10px] bg-background/30 border-border/10 w-[90px] font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border/40">
+              {[25, 50, 100, 500].map(val => <SelectItem key={val} value={String(val)} className="text-[10px] font-medium">{val} per page</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2 px-4">
+          <Button variant="ghost" size="icon" className="h-7 w-7 border border-border/10 bg-background/20 hover:bg-background/40 transition-all active:scale-90" onClick={() => queryStore.setOffset(tabId, Math.max(0, offset - limit))} disabled={offset === 0}><CaretLeft className="w-3.5 h-3.5 text-muted-foreground/40" /></Button>
+          <div className="px-3 font-semibold tabular-nums text-foreground/50 text-[11px] min-w-[70px] text-center">{currentPage} of {totalPages || 1}</div>
+          <Button variant="ghost" size="icon" className="h-7 w-7 border border-border/10 bg-background/20 hover:bg-background/40 transition-all active:scale-90" onClick={() => queryStore.setOffset(tabId, offset + limit)} disabled={offset + limit >= data.total}><CaretRight className="w-3.5 h-3.5 text-muted-foreground/40" /></Button>
+        </div>
+      </div>
         </>
       ) : null}
     </div>

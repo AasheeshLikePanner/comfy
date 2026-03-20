@@ -39,18 +39,25 @@ interface Filter {
   value: any;
 }
 
-interface QueryState {
-  sql: string;
-  results: QueryResult[];
-  isExecuting: boolean;
-  history: QueryHistoryItem[];
-  savedQueries: SavedQuery[];
+export interface TabQueryState {
   filters: Filter[];
   sortColumn: string | null;
   sortDirection: 'ASC' | 'DESC';
   searchQuery: string;
   limit: number;
   offset: number;
+}
+
+interface QueryState {
+  sql: string;
+  results: QueryResult[];
+  isExecuting: boolean;
+  history: QueryHistoryItem[];
+  savedQueries: SavedQuery[];
+  
+  // Tab-specific states
+  queries: Record<string, TabQueryState>;
+  
   addToHistory: (item: Omit<QueryHistoryItem, 'id'>) => void;
   setSql: (sql: string) => void;
   setResults: (results: QueryResult[]) => void;
@@ -59,17 +66,28 @@ interface QueryState {
   restoreFromHistory: (id: string) => void;
   saveQuery: (name: string, sql: string) => void;
   deleteSavedQuery: (id: string) => void;
-  setFilters: (filters: Filter[]) => void;
-  addFilter: (filter: Omit<Filter, 'id'>) => void;
-  removeFilter: (id: string) => void;
-  updateFilter: (id: string, updates: Partial<Filter>) => void;
-  clearFilters: () => void;
-  setSort: (column: string | null, direction: 'ASC' | 'DESC') => void;
-  setSearchQuery: (query: string) => void;
-  setLimit: (limit: number) => void;
-  setOffset: (offset: number) => void;
+  
+  // Tab-scoped actions
+  getTabQuery: (tabId: string) => TabQueryState;
+  addFilter: (tabId: string, filter: Omit<Filter, 'id'>) => void;
+  removeFilter: (tabId: string, id: string) => void;
+  clearFilters: (tabId: string) => void;
+  setSort: (tabId: string, column: string | null, direction: 'ASC' | 'DESC') => void;
+  setSearchQuery: (tabId: string, query: string) => void;
+  setLimit: (tabId: string, limit: number) => void;
+  setOffset: (tabId: string, offset: number) => void;
+  
   reset: () => void;
 }
+
+const DEFAULT_TAB_QUERY: TabQueryState = {
+  filters: [],
+  sortColumn: null,
+  sortDirection: 'ASC',
+  searchQuery: '',
+  limit: 50,
+  offset: 0,
+};
 
 export const useQueryStore = create<QueryState>()(
   persist(
@@ -79,12 +97,11 @@ export const useQueryStore = create<QueryState>()(
       isExecuting: false,
       history: [],
       savedQueries: [],
-      filters: [],
-      sortColumn: null,
-      sortDirection: 'ASC',
-      searchQuery: '',
-      limit: 50,
-      offset: 0,
+      queries: {},
+
+      getTabQuery: (tabId) => {
+        return get().queries[tabId] || DEFAULT_TAB_QUERY;
+      },
 
       addToHistory: (item) => {
         set(state => ({
@@ -137,51 +154,96 @@ export const useQueryStore = create<QueryState>()(
         }));
       },
 
-      setFilters: (filters) => {
-        set({ filters });
+      addFilter: (tabId, filter) => {
+        set(state => {
+          const tabQuery = state.queries[tabId] || { ...DEFAULT_TAB_QUERY };
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: {
+                ...tabQuery,
+                filters: [...tabQuery.filters, { ...filter, id: Date.now().toString() }]
+              }
+            }
+          };
+        });
       },
 
-      addFilter: (filter) => {
-        set(state => ({
-          filters: [
-            ...state.filters,
-            { ...filter, id: Date.now().toString() }
-          ]
-        }));
+      removeFilter: (tabId, id) => {
+        set(state => {
+          const tabQuery = state.queries[tabId];
+          if (!tabQuery) return state;
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: {
+                ...tabQuery,
+                filters: tabQuery.filters.filter(f => f.id !== id)
+              }
+            }
+          };
+        });
       },
 
-      removeFilter: (id) => {
-        set(state => ({
-          filters: state.filters.filter(f => f.id !== id)
-        }));
+      clearFilters: (tabId) => {
+        set(state => {
+          const tabQuery = state.queries[tabId];
+          if (!tabQuery) return state;
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: { ...tabQuery, filters: [] }
+            }
+          };
+        });
       },
 
-      updateFilter: (id, updates) => {
-        set(state => ({
-          filters: state.filters.map(f =>
-            f.id === id ? { ...f, ...updates } : f
-          )
-        }));
+      setSort: (tabId, column, direction) => {
+        set(state => {
+          const tabQuery = state.queries[tabId] || { ...DEFAULT_TAB_QUERY };
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: { ...tabQuery, sortColumn: column, sortDirection: direction }
+            }
+          };
+        });
       },
 
-      clearFilters: () => {
-        set({ filters: [] });
+      setSearchQuery: (tabId, query) => {
+        set(state => {
+          const tabQuery = state.queries[tabId] || { ...DEFAULT_TAB_QUERY };
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: { ...tabQuery, searchQuery: query, offset: 0 }
+            }
+          };
+        });
       },
 
-      setSort: (column, direction) => {
-        set({ sortColumn: column, sortDirection: direction });
+      setLimit: (tabId, limit) => {
+        set(state => {
+          const tabQuery = state.queries[tabId] || { ...DEFAULT_TAB_QUERY };
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: { ...tabQuery, limit, offset: 0 }
+            }
+          };
+        });
       },
 
-      setSearchQuery: (query) => {
-        set({ searchQuery: query, offset: 0 });
-      },
-
-      setLimit: (limit) => {
-        set({ limit, offset: 0 });
-      },
-
-      setOffset: (offset) => {
-        set({ offset });
+      setOffset: (tabId, offset) => {
+        set(state => {
+          const tabQuery = state.queries[tabId] || { ...DEFAULT_TAB_QUERY };
+          return {
+            queries: {
+              ...state.queries,
+              [tabId]: { ...tabQuery, offset }
+            }
+          };
+        });
       },
 
       reset: () => {
@@ -189,11 +251,7 @@ export const useQueryStore = create<QueryState>()(
           sql: '',
           results: [],
           isExecuting: false,
-          filters: [],
-          sortColumn: null,
-          sortDirection: 'ASC',
-          searchQuery: '',
-          offset: 0,
+          queries: {},
         });
       },
     }),

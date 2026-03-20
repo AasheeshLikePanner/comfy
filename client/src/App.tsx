@@ -11,14 +11,34 @@ import { Badge } from '@/components/ui/badge';
 import { Moon, Sun, Monitor, Database } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 
+import { TabContainer } from '@/components/Navigation/TabContainer';
+
 function App() {
-  const { currentView, selectedObject } = useNavigationStore();
+  const { currentView, selectedObject, tabs, activeTabId, nextTab, previousTab } = useNavigationStore();
   const { fetchConnections } = useConnectionStore();
   const [theme, setTheme] = React.useState<'light' | 'dark' | 'system'>('dark');
 
   useEffect(() => {
     fetchConnections();
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prioritize Tab switching as requested, but preserve input focus behavior
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '');
+      if (e.key === 'Tab' && !isInput) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          previousTab();
+        } else {
+          nextTab();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nextTab, previousTab]);
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (theme === 'system') {
@@ -39,8 +59,21 @@ function App() {
     }
   }, [theme]);
 
+  const renderContent = (tabId: string) => {
+    switch (currentView) {
+      case 'data':
+        return <DataTable tabId={tabId} />;
+      case 'schema':
+        return <SchemaInspector />;
+      case 'sql':
+        return <SqlEditor />;
+      default:
+        return <DataTable tabId={tabId} />;
+    }
+  };
+
   const renderMainContent = () => {
-    if (!selectedObject) {
+    if (tabs.length === 0) {
       return (
         <div className="flex-1 flex items-center justify-center bg-muted/10">
           <div className="text-center max-w-md p-8">
@@ -64,16 +97,25 @@ function App() {
       );
     }
 
-    switch (currentView) {
-      case 'data':
-        return <DataTable />;
-      case 'schema':
-        return <SchemaInspector />;
-      case 'sql':
-        return <SqlEditor />;
-      default:
-        return <DataTable />;
-    }
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TabContainer />
+        <div className="flex-1 relative overflow-hidden">
+          {tabs.map((tab) => (
+            <div 
+              key={tab.id}
+              className={cn(
+                "absolute inset-0 flex flex-col",
+                tab.id === activeTabId ? "visible z-10" : "invisible -z-10"
+              )}
+              style={tab.id !== activeTabId ? { display: 'none' } : {}}
+            >
+              {renderContent(tab.id)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
