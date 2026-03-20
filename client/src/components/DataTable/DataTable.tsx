@@ -642,29 +642,87 @@ const FilterPanel = ({ columns, filters, onAddFilter, onRemoveFilter, onClearFil
   const add = () => { if (column && operator) { onAddFilter({ column, operator, value }); setValue(''); } };
 
   return (
-    <div className="border-b border-border/40 p-4 bg-secondary/5 animate-in slide-in-from-top-1 duration-200">
-      <div className="flex items-center justify-between mb-4 px-1">
-        <div className="flex items-center gap-2"><Funnel className="w-3.5 h-3.5 text-muted-foreground/40" /><span className="text-[11px] font-semibold text-muted-foreground/50">Query filters</span></div>
-        {filters.length > 0 && <Button variant="ghost" size="sm" className="h-7 text-[10px] font-medium text-destructive hover:text-destructive/80" onClick={onClearFilters}>Reset all</Button>}
+    <div className="border-b border-border/40 p-4 bg-secondary/[0.03] animate-in slide-in-from-top-1 duration-200">
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <Funnel className="w-3.5 h-3.5 text-primary/60" weight="bold" />
+          <span className="text-[11px] font-bold tracking-tight text-foreground/70 uppercase">Query Filters</span>
+        </div>
+        {filters.length > 0 && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-6 text-[10px] font-bold text-destructive/60 hover:text-destructive hover:bg-destructive/5 px-2 transition-all" 
+            onClick={onClearFilters}
+          >
+            Reset all
+          </Button>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-3 p-3 bg-card border border-border/10 rounded-md">
-        <Select value={column} onValueChange={setColumn}><SelectTrigger className="w-[140px] h-8 text-[11px] font-medium bg-background border-border/10"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-card border-border/40 min-w-[140px]">{columns.map(c => <SelectItem key={c.name} value={c.name} className="text-[11px] font-medium">{c.name}</SelectItem>)}</SelectContent>
+      
+      <div className="flex flex-wrap items-center gap-2 p-2 bg-background/50 border border-border/40 rounded-lg shadow-sm backdrop-blur-sm group-focus-within:border-primary/30 transition-all">
+        <Select value={column} onValueChange={setColumn}>
+          <SelectTrigger className="w-[150px] h-8 text-[11px] font-semibold bg-secondary/20 border-border/20 hover:bg-secondary/30 transition-all">
+            <SelectValue placeholder="Column" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border/40 min-w-[150px]">
+            {columns.map(c => <SelectItem key={c.name} value={c.name} className="text-[11px] font-medium">{c.name}</SelectItem>)}
+          </SelectContent>
         </Select>
-        <Select value={operator} onValueChange={setOperator}><SelectTrigger className="w-[120px] h-8 text-[11px] font-medium bg-background border-border/10"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-card border-border/40 min-w-[120px]">{column && ops(column).map(o => <SelectItem key={o} value={o} className="text-[11px] font-medium">{labels[o] || o}</SelectItem>)}</SelectContent>
+        
+        <Select value={operator} onValueChange={setOperator}>
+          <SelectTrigger className="w-[130px] h-8 text-[11px] font-semibold bg-secondary/20 border-border/20 hover:bg-secondary/30 transition-all">
+            <SelectValue placeholder="Operator" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border/40 min-w-[130px]">
+            {column && ops(column).map(o => <SelectItem key={o} value={o} className="text-[11px] font-medium">{labels[o] || o}</SelectItem>)}
+          </SelectContent>
         </Select>
-        {!['is_null', 'is_not_null', 'is_true', 'is_false'].includes(operator) && <Input value={value} onChange={e => setValue(e.target.value)} placeholder="Value..." className="h-8 text-[11px] font-medium bg-background border-border/10 flex-1 min-w-[140px]" />}
-        <Button onClick={add} disabled={!column || !operator || (!['is_null', 'is_not_null', 'is_true', 'is_false'].includes(operator) && !value)} className="h-8 px-6 bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-all">Add filter</Button>
+        
+        {!['is_null', 'is_not_null', 'is_true', 'is_false'].includes(operator) && (
+          <Input 
+            value={value} 
+            onChange={e => setValue(e.target.value)} 
+            placeholder="Type a value..." 
+            className="h-8 text-[11px] font-semibold bg-secondary/20 border-border/20 focus-visible:ring-1 focus-visible:ring-primary/20 flex-1 min-w-[140px] placeholder:text-muted-foreground/30" 
+            onKeyDown={(e) => e.key === 'Enter' && add()}
+          />
+        )}
+        
+        <Button 
+          onClick={add} 
+          disabled={!column || !operator || (!['is_null', 'is_not_null', 'is_true', 'is_false'].includes(operator) && !value)} 
+          className="h-8 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[11px] tracking-tight transition-all active:scale-95 shadow-lg shadow-primary/10"
+        >
+          Add filter
+        </Button>
       </div>
-      <div className="flex flex-wrap gap-2 mt-4 px-1">
-        {filters.map(f => (
-          <div key={f.id} className="flex items-center gap-2 bg-secondary/20 border border-border/10 px-3 py-1.5 rounded-md text-[11px] font-medium shadow-sm hover:border-border/30 group">
-            <span className="text-muted-foreground/60">{f.column}</span><span className="text-muted-foreground/40">{labels[f.operator] || f.operator}</span>
-            {f.value && <span className="text-foreground/90 font-semibold">{f.value}</span>}
-            <button className="ml-1 text-muted-foreground/20 group-hover:text-destructive transition-colors" onClick={() => onRemoveFilter(f.id)}><X className="h-3 w-3" /></button>
-          </div>
-        ))}
+
+      <div className="flex flex-wrap gap-2 mt-4 px-1 min-h-[32px]">
+        {filters.length === 0 ? (
+          <div className="text-[10px] text-muted-foreground/20 font-medium italic py-2">No active filters</div>
+        ) : filters.map(f => {
+          return (
+            <div 
+              key={f.id} 
+              className={cn(
+                "flex items-center gap-2 border border-border/40 px-2.5 py-1.5 rounded-md text-[11px] font-bold shadow-sm transition-all animate-in zoom-in-95 duration-200 group bg-secondary/20 text-foreground/80 hover:border-primary/20"
+              )}
+            >
+              <span className="opacity-40 font-medium">{f.column}</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-black tracking-widest uppercase">
+                {labels[f.operator] || f.operator}
+              </span>
+              {f.value && <span className="font-mono text-foreground">{f.value}</span>}
+              <button 
+                className="ml-1 opacity-20 hover:opacity-100 hover:text-destructive p-0.5 rounded-full transition-all" 
+                onClick={() => onRemoveFilter(f.id)}
+              >
+                <X className="h-3 w-3" weight="bold" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
