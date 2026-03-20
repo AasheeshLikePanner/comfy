@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useConnectionStore, Connection } from '@/store/connection';
 import { useNavigationStore, ObjectInfo } from '@/store/navigation';
+import Fuse from 'fuse.js';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,8 @@ import {
   Trash,
   Check,
   CaretLeft,
+  Columns,
+  TextAa,
 } from '@phosphor-icons/react';
 
 const ObjectTreeNode = ({ 
@@ -64,6 +67,8 @@ const ObjectTreeNode = ({
   const handleClick = () => {
     if (node.type === 'category') {
       toggleExpanded(`${connectionId}:${nodeSchema}:${node.name}`);
+    } else if (node.type === 'column' && (node as any).parentTable && nodeSchema) {
+      selectObject(nodeSchema, (node as any).parentTable, 'table');
     } else if (nodeSchema) {
       selectObject(nodeSchema, node.name, node.type);
     }
@@ -94,6 +99,8 @@ const ObjectTreeNode = ({
         return <Function {...iconProps} className="w-3.5 h-3.5 text-amber-400/70" />;
       case 'sequence':
         return <Stack {...iconProps} className="w-3.5 h-3.5 text-rose-400/70" />;
+      case 'column':
+        return <TextAa {...iconProps} className="w-3.5 h-3.5 text-muted-foreground/30" />;
       default:
         return null;
     }
@@ -256,6 +263,16 @@ export const Sidebar = () => {
     }
   }, [activeConnectionId, activeConnection?.status]);
 
+  useEffect(() => {
+    if (refreshInterval === 'manual' || !activeConnectionId || activeConnection?.status !== 'connected') return;
+    
+    const interval = setInterval(() => {
+      fetchObjects();
+    }, Number(refreshInterval) * 1000);
+    
+    return () => clearInterval(interval);
+  }, [refreshInterval, activeConnectionId, activeConnection?.status]);
+
   const fetchObjects = async () => {
     const currentActiveId = useConnectionStore.getState().activeConnectionId;
     if (!currentActiveId) return;
@@ -296,26 +313,137 @@ export const Sidebar = () => {
     fetchObjects();
   };
 
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Advanced Deep Search - debounced
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2 || !activeConnectionId) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const response = await fetch(`/api/search/${activeConnectionId}?q=${searchQuery}`);
+        const data = await response.json();
+        if (data.results) {
+          setSearchResults(data.results);
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeConnectionId]);
+
   const filteredObjects = React.useMemo(() => {
     if (!searchQuery) return objects;
-    const query = searchQuery.toLowerCase();
-    return filterObjects(objects, query);
-  }, [objects, searchQuery]);
-
-  const filterObjects = (objs: ObjectInfo[], query: string): ObjectInfo[] => {
-    return objs.reduce((acc: ObjectInfo[], obj) => {
-      const matches = obj.name.toLowerCase().includes(query);
-      const filteredChildren = obj.children ? filterObjects(obj.children, query) : [];
-      
-      if (matches || filteredChildren.length > 0) {
-        acc.push({
-          ...obj,
-          children: filteredChildren.length > 0 ? filteredChildren : obj.children,
+    
+    // Combine local tree objects with server search results
+    const combinedResults: any[] = [...flattenObjects(objects)];
+    
+    // Add server results (columns, etc.) that aren't in the tree
+    searchResults.forEach(res => {
+      if (res.type === 'column') {
+        combinedResults.push({
+          name: res.name,
+          type: 'column' as any,
+          schema: res.schema,
+          parentTable: res.parent_table,
+          fullPath: `${res.schema}.${res.parent_table}.${res.name}`
         });
+      } else if (!combinedResults.some(o => o.name === res.name && o.type === res.type)) {
+        combinedResults.push({
+          ...res,
+          fullPath: `${res.schema}.${res.name}`
+        });
+      }
+    });
+
+    const fuse = new Fuse(combinedResults, {
+      keys: ['name', 'path', 'parentTable'],
+      threshold: 0.3,
+      distance: 100,
+    });
+
+    const results = fuse.search(searchQuery);
+    
+    // Build a virtual tree for search results
+    return buildSearchResultTree(results.map(r => r.item));
+  }, [objects, searchQuery, searchResults]);
+
+  function buildSearchResultTree(items: any[]): ObjectInfo[] {
+    const root: ObjectInfo[] = [];
+    const schemaMap = new Map<string, ObjectInfo>();
+
+    items.forEach(item => {
+      const schemaName = item.schema || 'public';
+      if (!schemaMap.has(schemaName)) {
+        const schemaNode: ObjectInfo = { name: schemaName, type: 'schema', children: [] };
+        schemaMap.set(schemaName, schemaNode);
+        root.push(schemaNode);
+      }
+
+      const schemaNode = schemaMap.get(schemaName)!;
+      
+      if (item.type === 'column' && item.parentTable) {
+        // Handle column match: show Table > Column
+        let tablesCat = schemaNode.children?.find(c => c.name === 'Tables');
+        if (!tablesCat) {
+          tablesCat = { name: 'Tables', type: 'category', children: [] };
+          schemaNode.children?.push(tablesCat);
+        }
+
+        let tableNode = tablesCat.children?.find(t => t.name === item.parentTable);
+        if (!tableNode) {
+          tableNode = { name: item.parentTable, type: 'table', children: [], schema: schemaName };
+          tablesCat.children?.push(tableNode);
+        }
+
+        if (!tableNode.children?.some(c => c.name === item.name)) {
+          tableNode.children?.push({ 
+            name: item.name, 
+            type: 'column', 
+            schema: schemaName,
+            parentTable: item.parentTable 
+          } as any);
+        }
+      } else if (item.type === 'table' || item.type === 'view') {
+        const catName = item.type === 'table' ? 'Tables' : 'Views';
+        let cat = schemaNode.children?.find(c => c.name === catName);
+        if (!cat) {
+          cat = { name: catName, type: 'category', children: [] };
+          schemaNode.children?.push(cat);
+        }
+        if (!cat.children?.some(i => i.name === item.name)) {
+          cat.children?.push({ ...item, schema: schemaName });
+        }
+      } else {
+        // Other types
+        if (!schemaNode.children?.some(i => i.name === item.name && i.type === item.type)) {
+          schemaNode.children?.push({ ...item, schema: schemaName });
+        }
+      }
+    });
+
+    return root;
+  }
+
+  function flattenObjects(objs: ObjectInfo[], parentPath: string = ''): any[] {
+    return objs.reduce((acc: any[], obj) => {
+      const currentPath = parentPath ? `${parentPath}.${obj.name}` : obj.name;
+      acc.push({ ...obj, fullPath: currentPath, path: currentPath });
+      if (obj.children) {
+        acc.push(...flattenObjects(obj.children, currentPath));
       }
       return acc;
     }, []);
-  };
+  }
 
   return (
     <div className="h-full flex flex-col bg-transparent">
@@ -359,9 +487,13 @@ export const Sidebar = () => {
         <>
           <div className="p-3">
             <div className="relative group">
-              <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 group-focus-within:text-foreground/50 transition-colors" />
+              {isSearching ? (
+                <CircleNotch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary animate-spin" />
+              ) : (
+                <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40 group-focus-within:text-foreground/50 transition-colors" />
+              )}
               <Input
-                placeholder="Find objects..."
+                placeholder="Find objects (fuzzy)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8 h-8 text-[12px] bg-secondary/30 border-border/20 focus:bg-secondary/50 focus:border-border/40 transition-all rounded-md placeholder:text-muted-foreground/30"
@@ -391,36 +523,49 @@ export const Sidebar = () => {
             )}
           </div>
 
-          <div className="p-3 border-t border-border/40 bg-secondary/10 flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2 px-1">
-              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.2em]">Data Refresh</span>
-              <Select 
-                value={refreshInterval} 
-                onValueChange={(v) => {
-                  if (v === 'now') {
-                    fetchObjects();
-                  } else {
-                    setRefreshInterval(v);
-                  }
-                }}
-              >
-                <SelectTrigger className="h-7 text-[10px] bg-background/50 border-border/20 w-[110px] font-medium transition-all hover:border-border/40">
-                  <div className="flex items-center gap-2">
-                    {loading ? <CircleNotch className="w-3 h-3 animate-spin" /> : <ArrowsClockwise className="w-3 h-3" />}
-                    <SelectValue />
+          <div className="p-2 border-t border-border/40 bg-secondary/5">
+            <Select 
+              value={refreshInterval} 
+              onValueChange={(v) => {
+                if (v === 'now') {
+                  fetchObjects();
+                } else {
+                  setRefreshInterval(v);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full h-8 text-[11px] bg-secondary/20 border-none font-medium transition-all hover:bg-secondary/40 px-3 rounded-md">
+                <div className="flex items-center gap-2">
+                  <ArrowsClockwise className={cn("w-3.5 h-3.5 text-muted-foreground/40", loading && "animate-spin text-primary")} weight="bold" />
+                  <span className="text-muted-foreground/40 font-medium whitespace-nowrap">Refresh:</span>
+                  <div className="flex items-center overflow-hidden">
+                    {refreshInterval !== 'manual' && <span className="text-muted-foreground/30 font-normal mr-1">Every</span>}
+                    <span className="text-foreground font-bold whitespace-nowrap">
+                      {refreshInterval === 'manual' ? 'Manual' : `${refreshInterval}s`}
+                    </span>
                   </div>
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border/40">
-                  <SelectItem value="now" className="text-[10px] font-medium text-primary">Refresh now</SelectItem>
-                  <div className="h-px bg-border/20 my-1" />
-                  <SelectItem value="manual" className="text-[10px] font-medium">Manual Only</SelectItem>
-                  <SelectItem value="1" className="text-[10px] font-medium">Every 1s</SelectItem>
-                  <SelectItem value="5" className="text-[10px] font-medium">Every 5s</SelectItem>
-                  <SelectItem value="10" className="text-[10px] font-medium">Every 10s</SelectItem>
-                  <SelectItem value="30" className="text-[10px] font-medium">Every 30s</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border/40 min-w-[140px]">
+                <SelectItem value="now" className="text-[11px] font-bold text-primary">
+                  Refresh now
+                </SelectItem>
+                <div className="h-px bg-border/10 my-1" />
+                <SelectItem value="manual" className="text-[11px] font-medium">Manual</SelectItem>
+                <SelectItem value="1" className="text-[11px] font-medium">
+                  Every 1s
+                </SelectItem>
+                <SelectItem value="5" className="text-[11px] font-medium">
+                  Every 5s
+                </SelectItem>
+                <SelectItem value="10" className="text-[11px] font-medium">
+                  Every 10s
+                </SelectItem>
+                <SelectItem value="30" className="text-[11px] font-medium">
+                  Every 30s
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </>
       )}

@@ -260,6 +260,7 @@ export const useQueryStore = create<QueryState>()(
       partialize: (state) => ({
         savedQueries: state.savedQueries,
         history: state.history.filter(h => h.favorite),
+        queries: state.queries,
       }),
     }
   )

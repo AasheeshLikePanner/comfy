@@ -14,15 +14,35 @@ import { cn } from '@/lib/utils';
 import { TabContainer } from '@/components/Navigation/TabContainer';
 
 function App() {
-  const { currentView, selectedObject, tabs, activeTabId, nextTab, previousTab, isSidebarCollapsed, toggleSidebar } = useNavigationStore();
+  const { currentView, selectedObject, tabs, activeTabId, nextTab, previousTab, isSidebarCollapsed, toggleSidebar, setActiveTab } = useNavigationStore();
   const { fetchConnections } = useConnectionStore();
   const [theme, setTheme] = React.useState<'light' | 'dark' | 'system'>('dark');
 
   useEffect(() => {
     fetchConnections();
 
+    // Initial URL Sync - Restore full session from URL if present
+    const params = new URLSearchParams(window.location.search);
+    const tabsFromUrl = params.get('t');
+    const activeFromUrl = params.get('a');
+    
+    if (tabsFromUrl && tabs.length === 0) {
+      const tabIds = tabsFromUrl.split(',');
+      const newTabs = tabIds.map(id => {
+        const delimiter = id.includes('.') ? '.' : ':';
+        const [schema, name] = id.split(delimiter);
+        const normalizedId = id.replace(':', '.');
+        return { id: normalizedId, name, schema, type: 'table' as const };
+      });
+      useNavigationStore.getState().setTabs(newTabs);
+    }
+
+    if (activeFromUrl) {
+      setActiveTab(activeFromUrl);
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prioritize Tab switching as requested, but preserve input focus behavior
+      // Prioritize Tab switching as requested, but preserve focus behavior
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '');
       if (e.key === 'Tab' && !isInput) {
         e.preventDefault();
@@ -37,6 +57,32 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextTab, previousTab]);
+
+  useEffect(() => {
+    // Sync active tab and open tabs list to URL (Sleek Shorthand)
+    const url = new URL(window.location.href);
+    
+    // Clean up legacy parameters to avoid bloat
+    url.searchParams.delete('tab');
+    url.searchParams.delete('tabs');
+
+    if (activeTabId) {
+      // Use clean dot separator for ID
+      const sleekId = activeTabId.replace(':', '.');
+      url.searchParams.set('a', sleekId);
+    } else {
+      url.searchParams.delete('a');
+    }
+
+    if (tabs.length > 0) {
+      const sleekTabs = tabs.map(t => t.id.replace(':', '.')).join(',');
+      url.searchParams.set('t', sleekTabs);
+    } else {
+      url.searchParams.delete('t');
+    }
+
+    window.history.replaceState({}, '', url.toString());
+  }, [activeTabId, tabs]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -131,36 +177,25 @@ function App() {
             <Sidebar />
           </div>
         </div>
-<div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-  {/* Header */}
-  <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 bg-background/50 backdrop-blur-md">
-    <div className="flex items-center gap-4">
-      <button
-        onClick={toggleSidebar}
-        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground/40 hover:text-foreground transition-colors mr-2"
-        title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-      >
-        <List className="w-5 h-5" />
-      </button>
 
-      {isSidebarCollapsed && (
-        <div className="flex items-center gap-2 mr-2 animate-in fade-in slide-in-from-left-4 duration-500">
-          <Database className="w-4 h-4 text-primary" weight="fill" />
-          <span className="font-bold text-[13px] tracking-tight text-foreground/90 uppercase">dbviz</span>
-        </div>
-      )}
-      {selectedObject && (
-        <div className="flex items-center gap-2 text-[13px]">
-          <span className="px-1.5 py-0.5 rounded bg-secondary text-muted-foreground text-[10px] font-medium tracking-tight">
-            {selectedObject.schema}
-          </span>
-          <span className="text-muted-foreground/30 font-light">/</span>
-          <span className="font-medium text-foreground/90">
-            {selectedObject.table}
-          </span>
-          <span className="text-[10px] text-muted-foreground/60 uppercase tracking-widest ml-1 font-semibold">{selectedObject.type}</span>
-        </div>
-      )}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Header */}
+          <header className="h-12 border-b border-border/40 flex items-center justify-between px-4 bg-background/50 backdrop-blur-md">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleSidebar}
+                className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground/40 hover:text-foreground transition-colors mr-2"
+                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                <List className="w-5 h-5" />
+              </button>
+
+              {isSidebarCollapsed && (
+                <div className="flex items-center gap-2 mr-2 animate-in fade-in slide-in-from-left-4 duration-500">
+                  <Database className="w-4 h-4 text-primary" weight="fill" />
+                  <span className="font-bold text-[13px] tracking-tight text-foreground/90 uppercase">dbviz</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4">
