@@ -11,6 +11,7 @@ import * as roles from '../db/queries/roles.js';
 import * as activity from '../db/queries/activity.js';
 import * as stats from '../db/queries/stats.js';
 import * as joins from '../db/queries/joins.js';
+import { searchDatabase, clearSearchCache } from '../db/queries/search.js';
 
 const app = new Hono();
 
@@ -590,70 +591,22 @@ app.get('/search/:connectionId', async (c) => {
   const query = c.req.query('q');
   
   if (!query) {
-    return c.json({ results: [] });
-  }
-
-  const conn = getConnection(connectionId);
-  if (!conn) {
-    return c.json({ error: 'Connection not found' }, 404);
+    return c.json({ tables: [], columns: [], relationships: [], values: [], valueCounts: [] });
   }
 
   try {
-    const searchPattern = `%${query.toLowerCase()}%`;
-    
-    const [tablesResult, columnsResult, viewsResult, functionsResult] = await Promise.all([
-      conn.pool.query(`
-        SELECT DISTINCT t.relname AS name, 'table' AS type, n.nspname AS schema
-        FROM pg_class t
-        JOIN pg_namespace n ON n.oid = t.relnamespace
-        WHERE t.relkind = 'r' 
-          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND LOWER(t.relname) LIKE $1
-        LIMIT 20
-      `, [searchPattern]),
-      conn.pool.query(`
-        SELECT DISTINCT c.column_name AS name, 'column' AS type, 
-               t.relname AS parent_table, n.nspname AS schema
-        FROM pg_attribute a
-        JOIN pg_class t ON t.oid = a.attrelid
-        JOIN pg_namespace n ON n.oid = t.relnamespace
-        JOIN information_schema.columns c ON c.table_name = t.relname AND c.column_name = a.attname
-        WHERE a.attnum > 0
-          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND LOWER(a.attname) LIKE $1
-        LIMIT 20
-      `, [searchPattern]),
-      conn.pool.query(`
-        SELECT DISTINCT v.relname AS name, 'view' AS type, n.nspname AS schema
-        FROM pg_class v
-        JOIN pg_namespace n ON n.oid = v.relnamespace
-        WHERE v.relkind IN ('v', 'm')
-          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND LOWER(v.relname) LIKE $1
-        LIMIT 10
-      `, [searchPattern]),
-      conn.pool.query(`
-        SELECT DISTINCT p.proname AS name, 'function' AS type, n.nspname AS schema
-        FROM pg_proc p
-        JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE p.prokind IN ('f', 'p')
-          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND LOWER(p.proname) LIKE $1
-        LIMIT 10
-      `, [searchPattern]),
-    ]);
-
-    return c.json({
-      results: [
-        ...tablesResult.rows,
-        ...columnsResult.rows,
-        ...viewsResult.rows,
-        ...functionsResult.rows,
-      ],
-    });
+    const results = await searchDatabase(connectionId, query);
+    return c.json(results);
   } catch (err: any) {
-    return c.json({ error: err.message }, 500);
+    console.error('[search API]', err.message, err.stack);
+    return c.json({ tables: [], columns: [], relationships: [], values: [], valueCounts: [], error: err.message }, 200);
   }
+});
+
+app.post('/search/:connectionId/refresh', async (c) => {
+  const connectionId = c.req.param('connectionId');
+  clearSearchCache(connectionId);
+  return c.json({ success: true });
 });
 
 export { app };
