@@ -220,3 +220,123 @@ export async function getTableColumns(connectionId: string, schema: string, tabl
   const result = await conn.pool.query(query, [schema, table]);
   return result.rows;
 }
+
+export async function insertRow(
+  connectionId: string,
+  schema: string,
+  table: string,
+  data: Record<string, any>
+) {
+  const conn = getConnection(connectionId);
+  if (!conn) throw new Error('Connection not found');
+
+  const safeSchema = sanitizeIdentifier(schema);
+  const safeTable = sanitizeIdentifier(table);
+  
+  const columns = Object.keys(data);
+  const values = Object.values(data);
+  
+  if (columns.length === 0) {
+    throw new Error('No data provided');
+  }
+  
+  const safeColumns = columns.map(c => sanitizeIdentifier(c));
+  const placeholders = columns.map((_, i) => `$${i + 1}`);
+  
+  const query = `
+    INSERT INTO ${safeSchema}.${safeTable} (${safeColumns.join(', ')})
+    VALUES (${placeholders.join(', ')})
+    RETURNING *
+  `;
+  
+  const result = await conn.pool.query(query, values);
+  return { rows: result.rows, rowCount: result.rowCount };
+}
+
+export async function updateRow(
+  connectionId: string,
+  schema: string,
+  table: string,
+  primaryKey: { column: string; value: any },
+  data: Record<string, any>
+) {
+  const conn = getConnection(connectionId);
+  if (!conn) throw new Error('Connection not found');
+
+  const safeSchema = sanitizeIdentifier(schema);
+  const safeTable = sanitizeIdentifier(table);
+  const safePk = sanitizeIdentifier(primaryKey.column);
+  
+  const updates = Object.entries(data)
+    .filter(([key]) => key !== primaryKey.column)
+    .map(([key, value], i) => {
+      const safeColumn = sanitizeIdentifier(key);
+      return `${safeColumn} = $${i + 1}`;
+    });
+  
+  if (updates.length === 0) {
+    throw new Error('No data to update');
+  }
+  
+  const updateValues = Object.entries(data)
+    .filter(([key]) => key !== primaryKey.column)
+    .map(([, value]) => value);
+  
+  const query = `
+    UPDATE ${safeSchema}.${safeTable}
+    SET ${updates.join(', ')}
+    WHERE ${safePk} = $${updateValues.length + 1}
+    RETURNING *
+  `;
+  
+  const result = await conn.pool.query(query, [...updateValues, primaryKey.value]);
+  return { rows: result.rows, rowCount: result.rowCount };
+}
+
+export async function deleteRows(
+  connectionId: string,
+  schema: string,
+  table: string,
+  primaryKeys: { column: string; value: any }[]
+) {
+  const conn = getConnection(connectionId);
+  if (!conn) throw new Error('Connection not found');
+
+  const safeSchema = sanitizeIdentifier(schema);
+  const safeTable = sanitizeIdentifier(table);
+  
+  if (primaryKeys.length === 0) {
+    throw new Error('No rows selected for deletion');
+  }
+  
+  const safeColumn = sanitizeIdentifier(primaryKeys[0].column);
+  const placeholders = primaryKeys.map((_, i) => `$${i + 1}`);
+  const values = primaryKeys.map(pk => pk.value);
+  
+  const query = `
+    DELETE FROM ${safeSchema}.${safeTable}
+    WHERE ${safeColumn} IN (${placeholders.join(', ')})
+    RETURNING *
+  `;
+  
+  const result = await conn.pool.query(query, values);
+  return { rows: result.rows, rowCount: result.rowCount };
+}
+
+export async function getPrimaryKey(connectionId: string, schema: string, table: string) {
+  const conn = getConnection(connectionId);
+  if (!conn) throw new Error('Connection not found');
+
+  const query = `
+    SELECT kcu.column_name
+    FROM information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+      ON tc.constraint_name = kcu.constraint_name
+    WHERE tc.constraint_type = 'PRIMARY KEY'
+      AND tc.table_schema = $1
+      AND tc.table_name = $2
+  `;
+  
+  const result = await conn.pool.query(query, [schema, table]);
+  return result.rows.length > 0 ? result.rows[0].column_name : null;
+}

@@ -305,6 +305,81 @@ app.get('/tables/:connectionId/:schema/:table/stats', async (c) => {
   }
 });
 
+app.get('/tables/:connectionId/:schema/:table/primary-key', async (c) => {
+  const { connectionId, schema: schemaName, table } = c.req.param();
+  
+  try {
+    const result = await tables.getPrimaryKey(connectionId, schemaName, table);
+    return c.json({ primaryKey: result });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/tables/:connectionId/:schema/:table/rows', async (c) => {
+  const { connectionId, schema: schemaName, table } = c.req.param();
+  const data = await c.req.json();
+  
+  if (!data || Object.keys(data).length === 0) {
+    return c.json({ error: 'No data provided' }, 400);
+  }
+  
+  try {
+    const result = await tables.insertRow(connectionId, schemaName, table, data);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ 
+      error: err.message,
+      detail: err.detail,
+      hint: err.hint,
+    }, 400);
+  }
+});
+
+app.put('/tables/:connectionId/:schema/:table/rows', async (c) => {
+  const { connectionId, schema: schemaName, table } = c.req.param();
+  const { primaryKey, data } = await c.req.json();
+  
+  if (!primaryKey || !primaryKey.column || primaryKey.value === undefined) {
+    return c.json({ error: 'Primary key column and value required' }, 400);
+  }
+  
+  if (!data || Object.keys(data).length === 0) {
+    return c.json({ error: 'No data to update' }, 400);
+  }
+  
+  try {
+    const result = await tables.updateRow(connectionId, schemaName, table, primaryKey, data);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ 
+      error: err.message,
+      detail: err.detail,
+      hint: err.hint,
+    }, 400);
+  }
+});
+
+app.delete('/tables/:connectionId/:schema/:table/rows', async (c) => {
+  const { connectionId, schema: schemaName, table } = c.req.param();
+  const primaryKeys = await c.req.json();
+  
+  if (!primaryKeys || primaryKeys.length === 0) {
+    return c.json({ error: 'No rows selected for deletion' }, 400);
+  }
+  
+  try {
+    const result = await tables.deleteRows(connectionId, schemaName, table, primaryKeys);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ 
+      error: err.message,
+      detail: err.detail,
+      hint: err.hint,
+    }, 400);
+  }
+});
+
 app.get('/tables/:connectionId/:schema/:table/foreign-keys', async (c) => {
   const { connectionId, schema: schemaName, table } = c.req.param();
   

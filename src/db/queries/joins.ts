@@ -74,20 +74,20 @@ export async function buildJoinQuery(
   const conn = getConnection(connectionId);
   if (!conn) throw new Error('Connection not found');
 
-  const allColumnsQuery = `
-    SELECT table_schema, table_name, column_name
-    FROM information_schema.columns
-    WHERE (table_schema = $1 AND table_name = $2)
-  `;
+  const allColumnsQueryParts: string[] = [
+    `SELECT table_schema, table_name, column_name`,
+    `FROM information_schema.columns`,
+    `WHERE (table_schema = $1 AND table_name = $2)`
+  ];
   const params: any[] = [baseSchema, baseTable];
   let paramIndex = 3;
 
   for (const join of joins) {
-    allColumnsQuery.push(`OR (table_schema = $${paramIndex++} AND table_name = $${paramIndex++})`);
+    allColumnsQueryParts.push(`OR (table_schema = $${paramIndex++} AND table_name = $${paramIndex++})`);
     params.push(join.schema, join.table);
   }
 
-  const columnsResult = await conn.pool.query(allColumnsQuery.join(' '), params);
+  const columnsResult = await conn.pool.query(allColumnsQueryParts.join(' '), params);
   
   const allColumns = new Map<string, string[]>();
   for (const row of columnsResult.rows) {

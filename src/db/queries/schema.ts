@@ -179,7 +179,7 @@ export async function getTableStats(connectionId: string, schema: string, table:
       s.n_tup_ins AS rows_inserted,
       s.n_tup_upd AS rows_updated,
       s.n_tup_del AS rows_deleted,
-      s.n_hot_upd AS_hot_updated,
+      s.n_hot_upd AS hot_updated,
       s.n_live_tup AS live_row_count,
       s.n_dead_tup AS dead_row_count,
       s.last_vacuum AS last_vacuum,

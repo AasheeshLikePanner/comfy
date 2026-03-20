@@ -1,19 +1,21 @@
 {
-  "name": "dbviz",
+  "name": "cleo",
   "version": "1.0.0",
-  "description": "Local PostgreSQL visualizer - npm i -g dbviz → dbviz postgres://... → browser opens",
+  "description": "Local PostgreSQL visualizer - explore your database schema with a cute cat",
   "type": "module",
   "bin": {
-    "dbviz": "./dist/cli.js"
+    "cleo": "./dist/cli.js"
   },
   "scripts": {
     "dev": "bun --watch run src/cli.ts",
     "dev:client": "cd client && npm run dev",
     "dev:all": "bun run dev:client & bun run dev",
     "build": "bun build src/cli.ts --outdir dist --target bun",
+    "build:esbuild": "node scripts/build.js",
     "build:client": "cd client && npm run build",
-    "build:all": "npm run build && npm run build:client",
-    "start": "bun run dist/cli.js",
+    "build:all": "npm run build:client && npm run build:esbuild",
+    "prepublishOnly": "npm run build:all",
+    "start": "node dist/cli.js",
     "test": "bun test"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@types/pg": "^8.10.9",
     "bun-types": "^1.0.0",
+    "esbuild": "^0.27.4",
     "typescript": "^5.3.3"
   },
   "engines": {
@@ -38,5 +41,14 @@
     "postgres",
     "cli",
     "tool"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cleo"
+  },
+  "files": [
+    "dist",
+    "client/dist"
   ]
 }

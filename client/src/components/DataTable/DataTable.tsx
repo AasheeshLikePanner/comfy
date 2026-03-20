@@ -50,6 +50,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { InsertDialog, EditDialog, DeleteDialog } from './CRUDDialogs';
+import { Plus, PencilSimple, LinkSimple } from '@phosphor-icons/react';
 
 interface TableData {
   rows: Record<string, any>[];
@@ -94,6 +96,20 @@ const DataTable = ({ tabId }: DataTableProps) => {
   const [expandedCell, setExpandedCell] = useState<{ row: number; col: string } | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string | number>>(new Set());
   const [copiedCell, setCopiedCell] = useState<{ row: number; col: string } | null>(null);
+  const [primaryKey, setPrimaryKey] = useState<string | null>(null);
+  
+  const [showInsertDialog, setShowInsertDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const [editingRow, setEditingRow] = useState<Record<string, any> | null>(null);
+  
+  const [foreignKeys, setForeignKeys] = useState<{
+    columns: string[];
+    refSchema: string;
+    refTable: string;
+    refColumn: string;
+  }[]>([]);
 
   const handleCopy = (text: string, row: number, col: string) => {
     copyToClipboard(text);
@@ -118,12 +134,9 @@ const DataTable = ({ tabId }: DataTableProps) => {
     }
   };
 
-  const deleteSelected = () => {
-    if (selectedRowIds.size === 0) return;
-    if (confirm(`Are you sure you want to delete ${selectedRowIds.size} selected records?`)) {
-      console.log('Deleting:', Array.from(selectedRowIds));
-      setSelectedRowIds(new Set());
-    }
+  const handleRowDelete = (row: Record<string, any>) => {
+    setEditingRow(row);
+    setShowEditDialog(true);
   };
 
   useEffect(() => {
@@ -155,16 +168,41 @@ const DataTable = ({ tabId }: DataTableProps) => {
       if (filters.length > 0) {
         params.append('filters', JSON.stringify(filters.map(f => ({ column: f.column, operator: f.operator, value: f.value }))));
       }
-      const [rowsRes, schemaRes] = await Promise.all([
+      const [rowsRes, schemaRes, pkRes, fkRes] = await Promise.all([
         fetch(`/api/tables/${currentActiveId}/${selectedObject.schema}/${selectedObject.table}/rows?${params}`),
-        fetch(`/api/tables/${currentActiveId}/${selectedObject.schema}/${selectedObject.table}/schema`)
+        fetch(`/api/tables/${currentActiveId}/${selectedObject.schema}/${selectedObject.table}/schema`),
+        fetch(`/api/tables/${currentActiveId}/${selectedObject.schema}/${selectedObject.table}/primary-key`),
+        fetch(`/api/tables/${currentActiveId}/${selectedObject.schema}/${selectedObject.table}/foreign-keys`)
       ]);
       const rowsData = await rowsRes.json();
       const schemaData = await schemaRes.json();
+      const pkData = await pkRes.json();
+      const fkData = await fkRes.json();
+      
+      const pkColumn = schemaData.columns?.find((col: any) => col.pk_column)?.column_name || null;
+      setPrimaryKey(pkColumn);
+      
+      const parsedFKs = (fkData.outgoing || []).map((fk: any) => {
+        const cols = typeof fk.columns === 'string' ? fk.columns.replace(/[{}]/g, '').split(',') : (fk.columns || []);
+        const refCols = typeof fk.referenced_columns === 'string' ? fk.referenced_columns.replace(/[{}]/g, '').split(',') : (fk.referenced_columns || []);
+        return {
+          columns: cols,
+          refSchema: fk.referenced_schema || fk.schema,
+          refTable: fk.referenced_table,
+          refColumn: refCols[0]
+        };
+      });
+      const fkColumns = parsedFKs.flatMap(fk => fk.columns);
+      setForeignKeys(parsedFKs);
+      
       setData({
         rows: rowsData.rows || [],
         columns: schemaData.columns?.map((col: any) => ({
-          name: col.column_name, type: col.data_type, nullable: col.is_nullable === 'YES', is_pk: !!col.pk_column, is_fk: false
+          name: col.column_name, 
+          type: col.data_type, 
+          nullable: col.is_nullable === 'YES', 
+          is_pk: !!col.pk_column, 
+          is_fk: fkColumns.includes(col.column_name)
         })) || [],
         total: rowsData.total || 0,
       });
@@ -173,6 +211,13 @@ const DataTable = ({ tabId }: DataTableProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFKClick = (schema: string, table: string, column: string, value: any) => {
+    const newTabId = `${schema}.${table}`;
+    useNavigationStore.getState().selectObject(schema, table, 'table');
+    queryStore.clearFilters(newTabId);
+    queryStore.addFilter(newTabId, { column, operator: 'equals', value: String(value) });
   };
 
   const handleSort = (column: string) => {
@@ -239,16 +284,30 @@ const DataTable = ({ tabId }: DataTableProps) => {
 
     const isExpanded = expandedCell?.row === rowIndex && expandedCell?.col === column.name;
     const shouldTruncate = displayValue.length > 50;
+    const isFK = column.is_fk;
+    const fkInfo = isFK ? foreignKeys.find(fk => fk.columns.includes(column.name)) : null;
+
+    const handleCellClick = (e: React.MouseEvent) => {
+      if (isFK && fkInfo && value !== null) {
+        e.preventDefault();
+        handleFKClick(fkInfo.refSchema, fkInfo.refTable, fkInfo.refColumn, value);
+      }
+    };
 
     return (
       <div className="group/cell relative flex items-center min-w-[30px] h-6">
         <div className={cn(
           'font-mono text-[12px] leading-tight transition-all tabular-nums',
           isExpanded ? 'whitespace-normal rounded-md bg-secondary/10 p-2 z-50 absolute top-0 left-0 border border-border/40 shadow-2xl min-w-[300px]' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-[400px]',
+          isFK ? 'cursor-pointer hover:underline' : '',
           typeCategory === 'numeric' ? 'text-emerald-400/90' : 
           typeCategory === 'date' ? 'text-blue-400/90' :
-          typeCategory === 'boolean' ? (value ? 'text-emerald-500' : 'text-rose-500') : 'text-foreground/80'
-        )}>
+          typeCategory === 'boolean' ? (value ? 'text-emerald-500' : 'text-rose-500') : 
+          isFK ? 'text-foreground/50 hover:text-foreground/80' : 'text-foreground/80'
+        )}
+        onClick={handleCellClick}
+        title={isFK ? `Click to view ${fkInfo?.refSchema}.${fkInfo?.refTable}` : undefined}
+        >
           {typeCategory === 'boolean' ? (value ? 'TRUE' : 'FALSE') : 
            typeCategory === 'json' ? (
              <pre className={cn("text-[10px] bg-secondary/20 p-1.5 rounded border border-border/10 overflow-auto scrollbar-hide", !isExpanded && "max-h-[22px] max-w-[200px]")}>
@@ -292,6 +351,7 @@ const DataTable = ({ tabId }: DataTableProps) => {
   const currentPage = Math.floor(offset / limit) + 1;
 
   return (
+    <>
     <div className="flex-1 flex flex-col h-full bg-background overflow-hidden select-none">
       <div className="flex items-center justify-between border-b border-border/40 px-6 py-2.5 bg-secondary/5 backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -313,7 +373,7 @@ const DataTable = ({ tabId }: DataTableProps) => {
                 variant="destructive" 
                 size="sm" 
                 className="h-7 px-3 text-[11px] font-medium bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all active:scale-95"
-                onClick={deleteSelected}
+                onClick={() => setShowDeleteDialog(true)}
               >
                 <Trash className="w-3.5 h-3.5 mr-1.5" />
                 Delete
@@ -340,7 +400,12 @@ const DataTable = ({ tabId }: DataTableProps) => {
           </div>
           <Button variant="ghost" size="sm" className={cn("h-7 text-[11px] px-3 font-medium text-muted-foreground hover:text-foreground transition-all", showFilters && "bg-primary text-primary-foreground hover:bg-primary/90")} onClick={() => setShowFilters(!showFilters)}>
             Filters {filters.length > 0 && `(${filters.length})`}
-          </Button>          <DropdownMenu>
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-[11px] px-3 font-medium text-muted-foreground/60 hover:text-foreground transition-all" onClick={() => setShowInsertDialog(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Insert
+          </Button>
+
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-7 text-[11px] px-3 font-medium text-muted-foreground/60 hover:text-foreground">
                 <Download className="w-3.5 h-3.5 mr-1.5" /> Export
@@ -437,8 +502,22 @@ const DataTable = ({ tabId }: DataTableProps) => {
                             <div className="mt-1 flex gap-1 flex-wrap">
                               {column.nullable && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-background/50 border-white/5 text-muted-foreground/60">Nullable</Badge>}
                               {column.is_pk && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-amber-500/10 border-amber-500/20 text-amber-500/80">Primary Key</Badge>}
-                              {column.is_fk && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-indigo-500/10 border-indigo-500/20 text-indigo-500/80">Foreign Key</Badge>}
+                              {column.is_fk && <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-secondary/20 border-border/20 text-muted-foreground/60">FK</Badge>}
                             </div>
+                            {column.is_fk && (() => {
+                              const fk = foreignKeys.find(f => f.columns.includes(column.name));
+                              return fk ? (
+                                <div className="mt-2 pt-2 border-t border-border/20">
+                                  <div className="text-[9px] text-muted-foreground/60 flex items-center gap-1.5">
+                                    <LinkSimple className="w-3 h-3" />
+                                    <span>References <span className="text-foreground/70 font-medium">{fk.refSchema}.{fk.refTable}</span>.{fk.refColumn}</span>
+                                  </div>
+                                  <div className="text-[9px] text-muted-foreground/40 mt-1">
+                                    Click to navigate
+                                  </div>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         }
                       >
@@ -510,6 +589,36 @@ const DataTable = ({ tabId }: DataTableProps) => {
         </>
       ) : null}
     </div>
+
+    <InsertDialog
+      open={showInsertDialog}
+      onOpenChange={setShowInsertDialog}
+      data={data}
+      selectedObject={selectedObject}
+      onSuccess={fetchData}
+    />
+    
+    <EditDialog
+      open={showEditDialog}
+      onOpenChange={setShowEditDialog}
+      data={data}
+      selectedObject={selectedObject}
+      primaryKey={primaryKey}
+      editingRow={editingRow}
+      onSuccess={fetchData}
+    />
+    
+    <DeleteDialog
+      open={showDeleteDialog}
+      onOpenChange={setShowDeleteDialog}
+      data={data}
+      selectedObject={selectedObject}
+      primaryKey={primaryKey}
+      selectedRowIds={selectedRowIds}
+      onSuccess={() => { setSelectedRowIds(new Set()); fetchData(); }}
+    />
+    
+</>
   );
 };
 

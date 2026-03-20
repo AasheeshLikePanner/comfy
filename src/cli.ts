@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 import { serve } from '@hono/node-server';
 import { app } from './api/server.js';
 import { connect, maskPassword, generateConnectionId } from './db/client.js';
@@ -9,6 +8,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
+import net from 'net';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +74,31 @@ function findEnvFile(): string | null {
   return null;
 }
 
+function checkPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(false);
+    });
+    server.listen(port);
+  });
+}
+
+async function openBrowser(url: string) {
+  const { default: open } = await import('open');
+  setTimeout(() => {
+    open(url);
+  }, 500);
+}
+
 function autoDetectConnection(): string | null {
   if (process.env.DATABASE_URL) {
     return process.env.DATABASE_URL;
@@ -97,7 +122,8 @@ function autoDetectConnection(): string | null {
 }
 
 const PORT = parseInt(process.env.PORT || '4242');
-const argConnectionString = process.argv[2];
+const command = process.argv[2];
+const argConnectionString = process.argv[3];
 
 const staticApp = new Hono();
 
@@ -126,20 +152,37 @@ if (existsSync(distPath)) {
 }
 
 async function start() {
+  const isRunning = await checkPortInUse(PORT);
+  
+  if (isRunning) {
+    console.log(`
+  _  _ _____ __  __ _      __  __ _____ 
+ | || |_   _|  \\/  | |    |  \\/  | ____|
+ | || | | | | |\\/| | |    | |\\/| |  _|
+ |____| |_| |_|  | |_|    |_|  | |_|___ 
+ |_____|____|_|  |_|      (_)  |____(_) 
+                                             v1.0.0
+
+ cleo is already running at http://localhost:${PORT}
+ Opening browser...
+`);
+    await openBrowser(`http://localhost:${PORT}`);
+    return;
+  }
+  
   const detected = autoDetectConnection();
   const connectionString = argConnectionString || detected;
   const source = argConnectionString ? 'CLI argument' : detected ? 'auto-detected' : null;
   
   console.log(`
-   ____  ____  _____ 
-  / __ \\/ __ \\/ ___/  v1.0.0
- / / / / / / /\\__ \\   
-/ /_/ / /_/ /___/ /   
-\\____/\\____//____/    
+  _  _ _____ __  __ _      __  __ _____ 
+ | || |_   _|  \\/  | |    |  \\/  | ____|
+ | || | | | | |\\/| | |    | |\\/| |  _|
+ |____| |_| |_|  | |_|    |_|  | |_|___ 
+ |_____|____|_|  |_|      (_)  |____(_) 
+                                             v1.0.0
 
-Local PostgreSQL Visualizer
-
-Starting server on http://localhost:${PORT}
+ Starting server on http://localhost:${PORT}
 `);
 
   if (connectionString) {
@@ -173,7 +216,7 @@ Starting server on http://localhost:${PORT}
     console.log('  • PGHOME/PGHOST/PGUSER/PGDATABASE env vars');
     console.log('');
     console.log('You can also pass it directly:');
-    console.log('  dbviz postgres://user:pass@host/dbname');
+    console.log('  cleo postgres://user:pass@host/dbname');
     console.log('');
     console.log('Or add connections from the UI.');
   }
@@ -194,12 +237,100 @@ Starting server on http://localhost:${PORT}
   });
 
   if (process.platform === 'darwin' || process.platform === 'win32') {
-    import('open').then(({ default: open }) => {
-      setTimeout(() => {
-        open(`http://localhost:${PORT}`);
-      }, 500);
-    });
+    await openBrowser(`http://localhost:${PORT}`);
+  }
+  
+  console.log('Press Ctrl+C to stop');
+}
+
+async function stop() {
+  const isRunning = await checkPortInUse(PORT);
+  
+  if (!isRunning) {
+    console.log(`cleo is not running (port ${PORT} is free)`);
+    return;
+  }
+  
+  console.log(`Stopping cleo on port ${PORT}...`);
+  
+  const { execSync } = await import('child_process');
+  let killed = false;
+  
+  try {
+    if (process.platform === 'win32') {
+      const result = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' });
+      const lines = result.split('\n');
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && pid !== '0') {
+          execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' });
+          killed = true;
+        }
+      }
+    } else {
+      const output = execSync(`lsof -ti:${PORT}`, { encoding: 'utf8' });
+      const pids = output.trim().split('\n').filter(p => p.trim());
+      for (const pid of pids) {
+        try {
+          execSync(`kill ${pid.trim()}`, { stdio: 'ignore' });
+          killed = true;
+        } catch {}
+      }
+    }
+  } catch {}
+  
+  if (killed) {
+    console.log('✓ cleo stopped');
+  } else {
+    console.log('Could not auto-stop. Try: pkill -f cleo');
   }
 }
 
-start();
+function printHelp() {
+  console.log(`
+  _  _ _____ __  __ _      __  __ _____ 
+ | || |_   _|  \\/  | |    |  \\/  | ____|
+ | || | | | | |\\/| | |    | |\\/| |  _|
+ |____| |_| |_|  | |_|    |_|  | |_|___ 
+ |_____|____|_|  |_|      (_)  |____(_) 
+                                             v1.0.0
+
+ Usage:
+   cleo                     Start cleo (auto-detect or open browser if running)
+   cleo start              Start cleo server
+   cleo start <url>         Start cleo with connection string
+   cleo stop                Stop running cleo server
+   cleo --help              Show this help
+
+ Examples:
+   cleo
+   cleo start
+   cleo start postgres://user:pass@localhost/dbname
+   cleo stop
+`);
+}
+
+async function main() {
+  switch (command) {
+    case 'stop':
+      await stop();
+      break;
+    case 'start':
+      await start();
+      break;
+    case '--help':
+    case '-h':
+      printHelp();
+      break;
+    default:
+      if (command && !command.startsWith('-')) {
+        console.log(`Unknown command: ${command}`);
+        console.log(`Run 'cleo --help' for usage`);
+        process.exit(1);
+      }
+      await start();
+  }
+}
+
+main();

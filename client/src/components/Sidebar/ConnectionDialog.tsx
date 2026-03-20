@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { Database, X, ArrowRight, CircleNotch, Check, Desktop, Cube, CheckCircle, XCircle } from '@phosphor-icons/react';
+import { Database, X, ArrowRight, CircleNotch, Check, Desktop, Cube, CheckCircle, XCircle, Plus } from '@phosphor-icons/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
