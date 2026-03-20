@@ -380,8 +380,8 @@ const DataTable = ({ tabId }: DataTableProps) => {
             <Table className="border-collapse border-spacing-0">
               <TableHeader className="bg-secondary/40 sticky top-0 z-10 backdrop-blur-2xl border-b border-border/20">
                 <TableRow className="hover:bg-transparent border-b border-border/20">
-                  <TableHead className="w-[30px] px-0 border-none h-8">
-                    <div className="flex items-center justify-center h-full">
+                  <TableHead className="w-11 pl-4 pr-4 border-none h-8">
+                    <div className="flex items-center">
                       <button
                         onClick={toggleAllSelection}
                         className={cn(
@@ -397,8 +397,9 @@ const DataTable = ({ tabId }: DataTableProps) => {
                         {selectedRowIds.size > 0 && selectedRowIds.size < data.rows.length && <Minus weight="bold" className="w-2.5 h-2.5" />}
                       </button>
                     </div>
-                  </TableHead>                  {data.columns.map(column => (
-                    <TableHead key={column.name} className="h-8 py-0 cursor-pointer hover:bg-secondary/20 transition-all border-none font-bold group/head" onClick={() => handleSort(column.name)}>
+                  </TableHead>
+                  {data.columns.map((column, index) => (
+                    <TableHead key={column.name} className={cn("h-8 py-0 cursor-pointer hover:bg-secondary/20 transition-all border-none font-bold group/head", index === 0 ? "pl-0 pr-4" : "px-4")} onClick={() => handleSort(column.name)}>
                       <AppTooltip 
                         content={
                           <div className="flex flex-col gap-1 min-w-[140px]">
@@ -462,8 +463,8 @@ const DataTable = ({ tabId }: DataTableProps) => {
                   const isSelected = selectedRowIds.has(rowId);
                   return (
                     <TableRow key={rowIndex} className={cn("border-b border-border/5 hover:bg-secondary/10 transition-all duration-75 group", isSelected && "bg-foreground/[0.03] hover:bg-foreground/[0.05]")}>
-                      <TableCell className="w-[30px] px-0 border-none">
-                        <div className="flex items-center justify-center">
+                      <TableCell className="w-11 pl-4 pr-4 border-none">
+                        <div className="flex items-center">
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleRowSelection(rowId); }}
                             className={cn(
@@ -477,8 +478,8 @@ const DataTable = ({ tabId }: DataTableProps) => {
                           </button>
                         </div>
                       </TableCell>
-                      {data.columns.map(column => (
-                        <TableCell key={column.name} className="py-1 px-4 border-none last:border-r-0">
+                      {data.columns.map((column, index) => (
+                        <TableCell key={column.name} className={cn("py-1 border-none last:border-r-0", index === 0 ? "pl-0 pr-4" : "px-4")}>
                           {renderCellValue(row[column.name], column, rowIndex)}
                         </TableCell>
                       ))}

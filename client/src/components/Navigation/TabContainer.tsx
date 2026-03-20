@@ -7,9 +7,9 @@ import { AppTooltip } from '@/components/ui/AppTooltip';
 const getIcon = (type: ObjectType) => {
   const props = { className: "w-3.5 h-3.5" };
   switch (type) {
-    case 'table': return <Table {...props} className="text-emerald-400/70" />;
-    case 'view': return <Eye {...props} className="text-indigo-400/70" />;
-    case 'materialized_view': return <Eye {...props} className="text-orange-400/70" />;
+    case 'table': return <Table {...props} className="text-muted-foreground/40" weight="duotone" />;
+    case 'view': return <Eye {...props} className="text-indigo-400/40" />;
+    case 'materialized_view': return <Eye {...props} className="text-orange-400/40" />;
     case 'function': return <Function {...props} className="text-amber-400/70" />;
     case 'sequence': return <Stack {...props} className="text-rose-400/70" />;
     default: return null;

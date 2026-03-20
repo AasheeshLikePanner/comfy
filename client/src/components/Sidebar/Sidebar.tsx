@@ -74,9 +74,9 @@ const ObjectTreeNode = ({
       case 'schema':
         return <Database {...iconProps} className="w-3.5 h-3.5 text-blue-400/70" />;
       case 'table':
-        return <Table {...iconProps} className="w-3.5 h-3.5 text-emerald-400/70" />;
+        return <Table {...iconProps} className="w-3.5 h-3.5 text-muted-foreground/40" weight="duotone" />;
       case 'view':
-        return <Eye {...iconProps} className="w-3.5 h-3.5 text-indigo-400/70" />;
+        return <Eye {...iconProps} className="w-3.5 h-3.5 text-indigo-400/40" />;
       case 'materialized_view':
         return <Eye {...iconProps} className="w-3.5 h-3.5 text-orange-400/70" />;
       case 'function':
