@@ -113,7 +113,7 @@ export const CustomVideoPlayer = ({ src, className, autoPlay = false }: CustomVi
       <video
         ref={videoRef}
         src={src}
-        className="w-full h-full cursor-pointer max-h-inherit"
+        className="max-w-full max-h-full w-auto h-auto object-contain cursor-pointer"
         autoPlay={autoPlay}
         muted={autoPlay}
         playsInline
@@ -151,13 +151,13 @@ export const CustomVideoPlayer = ({ src, className, autoPlay = false }: CustomVi
         onMouseMove={(e) => e.stopPropagation()} // Prevent timeout while interacting with controls
       >
         {/* Progress Bar Container */}
-        <div className="relative group/progress h-2 w-full flex items-center cursor-pointer">
-          <div className="absolute inset-0 bg-white/20 rounded-full" />
+        <div className="relative group/progress h-1.5 w-full flex items-center cursor-pointer mb-2">
+          <div className="absolute inset-0 bg-white/5 rounded-full overflow-hidden backdrop-blur-sm border border-white/5" />
           <div 
-            className="absolute inset-y-0 left-0 bg-white rounded-full flex items-center justify-end"
+            className="absolute inset-y-0 left-0 bg-primary rounded-full flex items-center justify-end shadow-[0_0_15px_rgba(var(--primary),0.5)] transition-all duration-300"
             style={{ width: `${progress}%` }}
           >
-            <div className="w-4 h-4 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] scale-0 group-hover/progress:scale-100 transition-transform" />
+            <div className="w-3 h-3 bg-white rounded-full shadow-xl scale-0 group-hover/progress:scale-100 transition-transform ring-4 ring-primary/20" />
           </div>
           <input
             type="range"
@@ -173,8 +173,11 @@ export const CustomVideoPlayer = ({ src, className, autoPlay = false }: CustomVi
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4">
-              <button onClick={togglePlay} className="text-white hover:scale-110 transition-all">
-                {isPlaying ? <Pause className="w-5 h-5" weight="bold" /> : <Play className="w-5 h-5 translate-x-[1px]" weight="fill" />}
+              <button 
+                onClick={togglePlay} 
+                className="text-white hover:scale-110 active:scale-95 transition-all p-1"
+              >
+                {isPlaying ? <Pause className="w-6 h-6" weight="fill" /> : <Play className="w-6 h-6 translate-x-[1px]" weight="fill" />}
               </button>
               
               <div className="flex items-center gap-3 group/vol relative">
@@ -190,12 +193,12 @@ export const CustomVideoPlayer = ({ src, className, autoPlay = false }: CustomVi
                       }
                     }
                   }} 
-                  className="text-white/60 hover:text-white transition-colors"
+                  className="text-white/60 hover:text-white transition-colors p-1"
                 >
-                  {isMuted || volume === 0 ? <SpeakerSlash className="w-4 h-4" /> : volume < 0.5 ? <SpeakerLow className="w-4 h-4" /> : <SpeakerHigh className="w-4 h-4" />}
+                  {isMuted || volume === 0 ? <SpeakerSlash className="w-5 h-5" /> : volume < 0.5 ? <SpeakerLow className="w-5 h-5" /> : <SpeakerHigh className="w-5 h-5" />}
                 </button>
                 
-                <div className="w-20 overflow-hidden flex items-center">
+                <div className="w-16 md:w-20 overflow-hidden flex items-center">
                   <input
                     type="range"
                     min="0"
@@ -203,26 +206,25 @@ export const CustomVideoPlayer = ({ src, className, autoPlay = false }: CustomVi
                     step="0.01"
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="w-16 h-1 bg-white/20 appearance-none cursor-pointer rounded-full accent-white"
+                    className="w-full h-1 bg-white/10 appearance-none cursor-pointer rounded-full accent-primary hover:bg-white/20 transition-all"
                   />
                 </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2 tabular-nums">
-              <span className="text-[11px] font-black text-white/90 tracking-wider font-mono">{formatTime(currentTime)}</span>
-              <span className="text-[11px] font-black text-white/20 font-mono">/</span>
-              <span className="text-[11px] font-black text-white/40 tracking-wider font-mono">{formatTime(duration)}</span>
+              <span className="text-[11px] font-bold text-white/90 tracking-widest uppercase">{formatTime(currentTime)}</span>
+              <span className="text-[11px] font-bold text-white/10">|</span>
+              <span className="text-[11px] font-bold text-white/30 tracking-widest uppercase">{formatTime(duration)}</span>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="px-2 py-0.5 rounded-sm border border-white/20 bg-white/5 text-[9px] font-black text-white/60 uppercase tracking-widest backdrop-blur-xl">PRO VIEW</div>
+          <div className="flex items-center gap-2">
             <button 
               onClick={() => videoRef.current?.requestFullscreen()} 
-              className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-all transform hover:rotate-12 border border-white/10"
+              className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all active:scale-90 border border-white/5"
             >
-              <CornersOut className="w-4 h-4" weight="bold" />
+              <CornersOut className="w-5 h-5" weight="bold" />
             </button>
           </div>
         </div>

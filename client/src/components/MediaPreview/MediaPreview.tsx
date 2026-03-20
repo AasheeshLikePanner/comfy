@@ -80,88 +80,86 @@ export const MediaPreview = ({ items, className }: MediaPreviewProps) => {
         </div>
       </DialogTrigger>
       
-      <DialogContent className="max-w-[95vw] md:max-w-[85vw] max-h-[90vh] p-0 border-none bg-black/98 shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col justify-center items-center rounded-xl animate-in zoom-in-95 duration-200">
+      <DialogContent className="max-w-[100vw] w-screen h-screen md:max-w-[95vw] md:h-[95vh] p-4 md:p-8 border-none bg-black/98 shadow-[0_0_100px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col items-center justify-between rounded-none md:rounded-2xl animate-in zoom-in-95 duration-300">
         <div className="absolute top-4 right-4 z-[100] flex items-center gap-2">
           <button 
             onClick={handleDownload}
-            className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all backdrop-blur-md border border-white/5"
+            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all backdrop-blur-xl border border-white/5 active:scale-90"
             title="Download"
           >
-            <Download className="w-5 h-5" />
+            <Download className="w-5 h-5" weight="bold" />
           </button>
           <button 
             onClick={() => setIsOpen(false)}
-            className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all backdrop-blur-md border border-white/5"
+            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all backdrop-blur-xl border border-white/5 active:scale-90"
             title="Close"
           >
             <X className="w-5 h-5" weight="bold" />
           </button>
         </div>
 
-        <div className="relative w-full h-full flex items-center justify-center px-12 md:px-24">
+        <div className="flex-1 w-full flex flex-col md:flex-row items-center justify-center gap-4 min-h-0 relative">
           {items.length > 1 && (
             <>
               <button 
                 onClick={handlePrev}
-                className="absolute left-6 z-50 p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all border border-white/5 disabled:opacity-0"
+                className="absolute left-2 md:left-6 z-50 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all border border-white/5 backdrop-blur-md active:scale-90 disabled:opacity-0"
               >
                 <CaretLeft className="w-6 h-6" weight="bold" />
               </button>
               <button 
                 onClick={handleNext}
-                className="absolute right-6 z-50 p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all border border-white/5 disabled:opacity-0"
+                className="absolute right-2 md:right-6 z-50 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all border border-white/5 backdrop-blur-md active:scale-90 disabled:opacity-0"
               >
                 <CaretRight className="w-6 h-6" weight="bold" />
               </button>
             </>
           )}
 
-          <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-12">
-            <div className="relative w-full h-full max-h-[70vh] flex items-center justify-center overflow-hidden rounded-lg">
-              {activeItem.type === 'image' ? (
-                <img 
-                  src={activeItem.url} 
-                  alt={`Full view ${currentIndex + 1}`} 
-                  className="max-w-full max-h-full object-contain transition-transform duration-500 hover:scale-[1.02]"
-                  draggable={false}
-                />
-              ) : (
-                <CustomVideoPlayer 
-                  src={activeItem.url} 
-                  className="max-w-full max-h-full shadow-2xl border border-white/5"
-                  autoPlay={items.length === 1}
-                />
-              )}
-            </div>
-            
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
-                  {currentIndex + 1} <span className="text-white/10 mx-1">/</span> {items.length}
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-2 max-w-[400px] overflow-x-auto scrollbar-hide p-1">
-                {items.length > 1 && items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setCurrentIndex(idx)}
-                    className={cn(
-                      "relative w-12 h-10 rounded border transition-all shrink-0 overflow-hidden",
-                      currentIndex === idx ? "border-white/50 scale-110 shadow-lg" : "border-white/10 opacity-30 hover:opacity-100"
-                    )}
-                  >
-                    {item.type === 'image' ? (
-                      <img src={item.url} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-white/10 flex items-center justify-center">
-                        <Play className="w-3 h-3 text-white/60" weight="fill" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="flex-1 w-full h-full flex items-center justify-center overflow-hidden rounded-xl bg-secondary/[0.02] p-2">
+            {activeItem.type === 'image' ? (
+              <img 
+                src={activeItem.url} 
+                alt={`Full view ${currentIndex + 1}`} 
+                className="max-w-full max-h-full object-contain transition-all duration-700 animate-in fade-in zoom-in-95 shadow-2xl"
+                draggable={false}
+              />
+            ) : (
+              <CustomVideoPlayer 
+                src={activeItem.url} 
+                className="max-w-full max-h-full aspect-auto"
+                autoPlay={items.length === 1}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="w-full flex flex-col items-center gap-4 pb-4">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 rounded-full border border-white/10 backdrop-blur-md shadow-lg">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">
+              {currentIndex + 1} <span className="text-white/20 mx-1">/</span> {items.length}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-3 p-2 bg-white/5 rounded-2xl border border-white/5 backdrop-blur-md overflow-x-auto max-w-[90vw] scrollbar-hide">
+            {items.length > 1 && items.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentIndex(idx)}
+                className={cn(
+                  "relative w-14 h-12 rounded-lg border-2 transition-all shrink-0 overflow-hidden active:scale-95",
+                  currentIndex === idx ? "border-primary scale-110 shadow-xl z-10" : "border-white/10 opacity-40 hover:opacity-100 hover:border-white/30"
+                )}
+              >
+                {item.type === 'image' ? (
+                  <img src={item.url} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                    <Play className="w-4 h-4 text-white/60" weight="fill" />
+                  </div>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </DialogContent>

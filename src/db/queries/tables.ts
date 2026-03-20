@@ -50,15 +50,16 @@ export async function getTableRows(
   const safeSchema = sanitizeIdentifier(schema);
   const safeTable = sanitizeIdentifier(table);
 
-  let columns = '*';
+  let columnsSelect = '*';
   if (options.columns && options.columns.length > 0) {
-    columns = options.columns.map(c => sanitizeIdentifier(c)).join(', ');
+    columnsSelect = options.columns.map(c => sanitizeIdentifier(c)).join(', ');
   }
 
-  let query = `SELECT ${columns} FROM ${safeSchema}.${safeTable}`;
-  const params: any[] = [];
+  const queryParams: any[] = [];
   let paramIndex = 1;
+  const whereConditions: string[] = [];
 
+  // Handle Search
   if (options.search) {
     const colsResult = await conn.pool.query(
       `SELECT column_name FROM information_schema.columns 
@@ -68,121 +69,114 @@ export async function getTableRows(
     );
     
     if (colsResult.rows.length > 0) {
-      const searchConditions = colsResult.rows.map((col: any) => {
-        return `CAST(${sanitizeIdentifier(col.column_name)} AS TEXT) ILIKE $${paramIndex++}`;
+      const searchTerms = colsResult.rows.map((col: any) => {
+        return `CAST(${sanitizeIdentifier(col.column_name)} AS TEXT) ILIKE $${paramIndex}`;
       });
-      query += ` WHERE (${searchConditions.join(' OR ')})`;
-      params.push(`%${options.search}%`);
+      whereConditions.push(`(${searchTerms.join(' OR ')})`);
+      queryParams.push(`%${options.search}%`);
+      paramIndex++;
     }
   }
 
-  const filterResult = options.filters ? 
-    (() => {
-      const conditions: string[] = [];
-      for (const filter of options.filters!) {
-        const safeColumn = sanitizeIdentifier(filter.column);
-        switch (filter.operator) {
-          case 'equals':
-            conditions.push(`${safeColumn} = $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'not_equals':
-            conditions.push(`${safeColumn} != $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'contains':
-            conditions.push(`${safeColumn} ILIKE $${paramIndex}`);
-            params.push(`%${filter.value}%`);
-            break;
-          case 'starts_with':
-            conditions.push(`${safeColumn} ILIKE $${paramIndex}`);
-            params.push(`${filter.value}%`);
-            break;
-          case 'ends_with':
-            conditions.push(`${safeColumn} ILIKE $${paramIndex}`);
-            params.push(`%${filter.value}`);
-            break;
-          case 'is_null':
-            conditions.push(`${safeColumn} IS NULL`);
-            break;
-          case 'is_not_null':
-            conditions.push(`${safeColumn} IS NOT NULL`);
-            break;
-          case 'gt':
-            conditions.push(`${safeColumn} > $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'lt':
-            conditions.push(`${safeColumn} < $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'gte':
-            conditions.push(`${safeColumn} >= $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'lte':
-            conditions.push(`${safeColumn} <= $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'between':
-            conditions.push(`${safeColumn} BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
-            params.push(filter.value[0], filter.value[1]);
-            paramIndex++;
-            break;
-          case 'regex':
-            conditions.push(`${safeColumn} ~* $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'last_n_days':
-            conditions.push(`${safeColumn} >= NOW() - INTERVAL '${filter.value} days'`);
-            break;
-          case 'json_contains_key':
-            conditions.push(`${safeColumn} ? $${paramIndex}`);
-            params.push(filter.value);
-            break;
-          case 'array_contains':
-            conditions.push(`$${paramIndex} = ANY(${safeColumn})`);
-            params.push(filter.value);
-            break;
-          case 'is_true':
-            conditions.push(`${safeColumn} = true`);
-            break;
-          case 'is_false':
-            conditions.push(`${safeColumn} = false`);
-            break;
-        }
-        paramIndex++;
+  // Handle Filters
+  if (options.filters && options.filters.length > 0) {
+    for (const filter of options.filters) {
+      const safeColumn = sanitizeIdentifier(filter.column);
+      switch (filter.operator) {
+        case 'equals':
+          whereConditions.push(`${safeColumn} = $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'not_equals':
+          whereConditions.push(`${safeColumn} != $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'contains':
+          whereConditions.push(`${safeColumn} ILIKE $${paramIndex++}`);
+          queryParams.push(`%${filter.value}%`);
+          break;
+        case 'starts_with':
+          whereConditions.push(`${safeColumn} ILIKE $${paramIndex++}`);
+          queryParams.push(`${filter.value}%`);
+          break;
+        case 'ends_with':
+          whereConditions.push(`${safeColumn} ILIKE $${paramIndex++}`);
+          queryParams.push(`%${filter.value}`);
+          break;
+        case 'is_null':
+          whereConditions.push(`${safeColumn} IS NULL`);
+          break;
+        case 'is_not_null':
+          whereConditions.push(`${safeColumn} IS NOT NULL`);
+          break;
+        case 'gt':
+          whereConditions.push(`${safeColumn} > $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'lt':
+          whereConditions.push(`${safeColumn} < $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'gte':
+          whereConditions.push(`${safeColumn} >= $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'lte':
+          whereConditions.push(`${safeColumn} <= $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'between':
+          whereConditions.push(`${safeColumn} BETWEEN $${paramIndex++} AND $${paramIndex++}`);
+          queryParams.push(filter.value[0], filter.value[1]);
+          break;
+        case 'regex':
+          whereConditions.push(`${safeColumn} ~* $${paramIndex++}`);
+          queryParams.push(filter.value);
+          break;
+        case 'last_n_days':
+          whereConditions.push(`${safeColumn} >= NOW() - INTERVAL '${filter.value} days'`);
+          break;
+        case 'is_true':
+          whereConditions.push(`${safeColumn} = true`);
+          break;
+        case 'is_false':
+          whereConditions.push(`${safeColumn} = false`);
+          break;
       }
-      return conditions.length > 0 ? conditions.join(' AND ') : null;
-    })() : null;
-
-  if (filterResult) {
-    query += options.search ? ' AND ' : ' WHERE ';
-    query += filterResult;
+    }
   }
+
+  const whereClause = whereConditions.length > 0 
+    ? ` WHERE ${whereConditions.join(' AND ')}` 
+    : '';
+
+  // Data Query
+  let dataQuery = `SELECT ${columnsSelect} FROM ${safeSchema}.${safeTable}${whereClause}`;
 
   if (options.orderBy) {
     const safeOrderBy = sanitizeIdentifier(options.orderBy);
     const orderDir = options.orderDir === 'DESC' ? 'DESC' : 'ASC';
-    query += ` ORDER BY ${safeOrderBy} ${orderDir}`;
+    dataQuery += ` ORDER BY ${safeOrderBy} ${orderDir}`;
   }
 
   if (options.limit) {
-    query += ` LIMIT ${options.limit}`;
+    dataQuery += ` LIMIT ${options.limit}`;
   }
 
   if (options.offset) {
-    query += ` OFFSET ${options.offset}`;
+    dataQuery += ` OFFSET ${options.offset}`;
   }
 
-  const result = await conn.pool.query(query, params);
-  
-  const countQuery = `SELECT COUNT(*) as total FROM ${safeSchema}.${safeTable}` +
-    (filterResult ? ' WHERE ' + filterResult : '');
-  const countResult = await conn.pool.query(countQuery, params.slice(options.search ? 1 : 0));
+  // Count Query
+  const countQuery = `SELECT COUNT(*) as total FROM ${safeSchema}.${safeTable}${whereClause}`;
+
+  const [dataResult, countResult] = await Promise.all([
+    conn.pool.query(dataQuery, queryParams),
+    conn.pool.query(countQuery, queryParams)
+  ]);
 
   return {
-    rows: result.rows,
+    rows: dataResult.rows,
     total: parseInt(countResult.rows[0].total),
   };
 }
